@@ -1,0 +1,4 @@
+__pycache__/
+.env
+.streamlit/
+fundbuero_db.csv
