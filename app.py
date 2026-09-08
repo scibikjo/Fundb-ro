@@ -8,12 +8,23 @@ from PIL import Image
 import streamlit as st
 import tensorflow as tf
 
-# ---------------------------------------------------------
-# 1. KONFIGURATION & KATEGORIEN
-# (Stellen Sie sicher, dass die Reihenfolge genau der Ihres KI-Modells entspricht!)
-# ---------------------------------------------------------
-CATEGORIES = ["Elektronik", "Kleidung", "Bücher & Hefte", "Sonstiges"]
 DB_FILE = "fundbuero_db.csv"
+
+# ---------------------------------------------------------
+# 1. LABELS / KATEGORIEN AUS LABELS.TXT LADEN
+# ---------------------------------------------------------
+def load_labels():
+    labels_path = "labels.txt"
+    if os.path.exists(labels_path):
+        with open(labels_path, "r", encoding="utf-8") as f:
+            # Entfernt Nummern wie "0 ", "1 " am Anfang der Zeilen
+            labels = [line.strip().split(" ", 1)[-1] for line in f.readlines() if line.strip()]
+            if labels:
+                return labels
+    # Fallback-Kategorien, falls labels.txt fehlt
+    return ["Elektronik", "Kleidung", "Bücher & Hefte", "Sonstiges"]
+
+CATEGORIES = load_labels()
 
 # ---------------------------------------------------------
 # 2. DATENBANK (LOKALE CSV-SPEICHERUNG)
@@ -38,25 +49,25 @@ def load_keras_model():
     model_path = "keras_model.h5"
     if os.path.exists(model_path):
         try:
-            return tf.keras.models.load_model(model_path), None
+            return tf.keras.models.load_model(model_path, compile=False), None
         except Exception as e:
-            return None, f"Fehler beim Laden des Modells: {e}"
+            return None, f"Fehler beim Laden: {e}"
     else:
-        return None, f"Datei '{model_path}' wurde im GitHub-Repository nicht gefunden!"
+        return None, f"Datei '{model_path}' fehlt auf GitHub!"
 
 def predict_category(image_bytes, model):
     if model is None:
         return None, 0.0
     
-    # Bild laden und für MobileNetV2 vorbereiten
     img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
     img = img.resize((224, 224))
     
     img_array = np.array(img, dtype=np.float32)
     img_array = np.expand_dims(img_array, axis=0)
-    img_array = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
     
-    # Inferenz
+    # Teachable Machine Standard-Skalierung (-1 bis 1)
+    img_array = (img_array / 127.5) - 1.0
+    
     predictions = model.predict(img_array)
     predicted_class_index = np.argmax(predictions[0])
     confidence = float(predictions[0][predicted_class_index])
@@ -74,13 +85,16 @@ st.title("🔍 Digitales Schul-Fundbüro")
 df_items = load_data()
 model, model_error = load_keras_model()
 
-# Hinweis im Sidebar, ob KI geladen ist
+# Status in der Sidebar
 with st.sidebar:
     st.header("KI-Status")
     if model_error:
-        st.error(f"⚠️ KI deaktiviert: {model_error}")
+        st.error(f"⚠️ {model_error}")
     else:
-        st.success("✅ KI-Modell (`keras_model.h5`) aktiv!")
+        st.success("✅ KI-Modell bereit!")
+        st.write("**Gefundene Klassen:**")
+        for cat in CATEGORIES:
+            st.write(f"- {cat}")
 
 tab_home, tab_add, tab_detail = st.tabs(["📋 Dashboard", "➕ Etwas gefunden", "🔎 Detailansicht"])
 
@@ -137,9 +151,9 @@ with tab_add:
         predicted_cat, conf = predict_category(file_bytes, model)
         if predicted_cat:
             auto_category = predicted_cat
-            st.success(f"🤖 KI-Vorschlag: **{auto_category}** (Wahrscheinlichkeit: {conf*100:.1f}%)")
+            st.success(f"🤖 KI-Vorschlag: **{auto_category}** ({conf*100:.1f}% Sicher)")
         else:
-            st.warning("⚠️ KI konnte nicht genutzt werden. Bitte Kategorie manuell wählen.")
+            st.warning("⚠️ KI konnte nicht genutzt werden. Bitte manuell wählen.")
             
         st.image(file_bytes, caption="Hochgeladenes Bild", width=200)
         
