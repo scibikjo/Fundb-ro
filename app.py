@@ -97,8 +97,8 @@ with tab_home:
         for idx, row in filtered_df.reset_index(drop=True).iterrows():
             with cols[idx % 3]:
                 with st.container(border=True):
-                    if pd.notna(row["bild_base64"]) and row["bild_base64"]:
-                        st.image(row["bild_base64"], use_column_width=True)
+                    if pd.notna(row["bild_base64"]) and str(row["bild_base64"]).startswith("data:image"):
+                        st.image(row["bild_base64"], use_container_width=True)
                     st.subheader(row["titel"])
                     st.write(f"**Kategorie:** {row['kategorie']}")
                     st.write(f"**Fundort:** {row['fundort']} (Raum: {row['raum']})")
@@ -175,8 +175,8 @@ with tab_detail:
         
         col_img, col_info = st.columns([1, 1])
         with col_img:
-            if pd.notna(item_data["bild_base64"]) and item_data["bild_base64"]:
-                st.image(item_data["bild_base64"], use_column_width=True)
+            if pd.notna(item_data["bild_base64"]) and str(item_data["bild_base64"]).startswith("data:image"):
+                st.image(item_data["bild_base64"], use_container_width=True)
         
         with col_info:
             st.title(item_data["titel"])
