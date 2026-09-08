@@ -17,11 +17,9 @@ def load_labels():
     labels_path = "labels.txt"
     if os.path.exists(labels_path):
         with open(labels_path, "r", encoding="utf-8") as f:
-            # Entfernt Nummern wie "0 ", "1 " am Anfang der Zeilen
             labels = [line.strip().split(" ", 1)[-1] for line in f.readlines() if line.strip()]
             if labels:
                 return labels
-    # Fallback-Kategorien, falls labels.txt fehlt
     return ["Elektronik", "Kleidung", "Bücher & Hefte", "Sonstiges"]
 
 CATEGORIES = load_labels()
@@ -42,11 +40,10 @@ def save_data(df):
     df.to_csv(DB_FILE, index=False)
 
 # ---------------------------------------------------------
-# 3. KI-INTEGRATION (FIX FÜR OLDER TEACHABLE MACHINE MODELS)
+# 3. KI-INTEGRATION
 # ---------------------------------------------------------
 class FixedDepthwiseConv2D(tf.keras.layers.DepthwiseConv2D):
     def __init__(self, *args, **kwargs):
-        # Entfernt den veralteten 'groups'-Parameter für neuere Keras-Versionen
         kwargs.pop('groups', None)
         super().__init__(*args, **kwargs)
 
@@ -72,11 +69,13 @@ def predict_category(image_bytes, model):
     
     img_array = np.array(img, dtype=np.float32)
     img_array = np.expand_dims(img_array, axis=0)
-    
-    # Standard Teachable Machine Skalierung (-1 bis 1)
     img_array = (img_array / 127.5) - 1.0
     
-    predictions = model.predict(img_array)
+    try:
+        predictions = model(img_array, training=False).numpy()
+    except Exception:
+        predictions = model.predict(img_array)
+        
     predicted_class_index = np.argmax(predictions[0])
     confidence = float(predictions[0][predicted_class_index])
     
@@ -90,17 +89,20 @@ def predict_category(image_bytes, model):
 st.set_page_config(page_title="Schul-Fundbüro", page_icon="🔍", layout="wide")
 st.title("🔍 Digitales Schul-Fundbüro")
 
+# State für ausgewählten Gegenstand initialisieren
+if "selected_item_id" not in st.session_state:
+    st.session_state.selected_item_id = None
+
 df_items = load_data()
 model, model_error = load_keras_model()
 
-# Status in der Sidebar
 with st.sidebar:
     st.header("KI-Status")
     if model_error:
         st.error(f"⚠️ {model_error}")
     else:
         st.success("✅ KI-Modell bereit!")
-        st.write("**Geladene Kategorien:**")
+        st.write("**Kategorien:**")
         for cat in CATEGORIES:
             st.write(f"- {cat}")
 
@@ -142,7 +144,11 @@ with tab_home:
                     st.write(f"**Kategorie:** {row['kategorie']}")
                     st.write(f"**Fundort:** {row['fundort']} (Raum: {row['raum']})")
                     st.write(f"**Status:** {row['status']}")
-                    st.write(f"**Datum:** {row['datum']}")
+                    
+                    # Button zum direkten Öffnen der Detailansicht
+                    if st.button("🔎 Details ansehen", key=f"btn_{row['id']}"):
+                        st.session_state.selected_item_id = int(row["id"])
+                        st.rerun()
 
 # --- TAB 2: FORMULAR "ETWAS GEFUNDEN" ---
 with tab_add:
@@ -155,7 +161,6 @@ with tab_add:
     
     if uploaded_file is not None:
         file_bytes = uploaded_file.getvalue()
-        
         predicted_cat, conf = predict_category(file_bytes, model)
         if predicted_cat:
             auto_category = predicted_cat
@@ -164,12 +169,11 @@ with tab_add:
             st.warning("⚠️ KI konnte nicht genutzt werden. Bitte manuell wählen.")
             
         st.image(file_bytes, caption="Hochgeladenes Bild", width=200)
-        
         base64_encoded = base64.b64encode(file_bytes).decode('utf-8')
         img_data_url = f"data:image/jpeg;base64,{base64_encoded}"
 
     with st.form("add_item_form"):
-        titel = st.text_input("Titel / Gegenstand", placeholder="z.B. Blaue Trinkflasche")
+        titel = st.text_input("Titel / Gegenstand", placeholder="z.B. Blaue Jacke")
         kategorie_index = CATEGORIES.index(auto_category) if auto_category in CATEGORIES else 0
         kategorie = st.selectbox("Kategorie", CATEGORIES, index=kategorie_index)
         fundort = st.text_input("Fundort", placeholder="z.B. Sporthalle")
@@ -206,14 +210,21 @@ with tab_add:
 with tab_detail:
     st.header("Gegenstand-Details & Eigentum beanspruchen")
     
-    offene_items = df_items[df_items["status"] == "Offen"]
-    if offene_items.empty:
-        st.info("Derzeit gibt es keine offenen Fundstücke.")
+    if df_items.empty:
+        st.info("Derzeit gibt es keine eingetragenen Fundstücke.")
     else:
+        all_ids = df_items["id"].tolist()
+        
+        # Vorauswahl treffen, wenn im Dashboard ein Item angeklickt wurde
+        default_index = 0
+        if st.session_state.selected_item_id in all_ids:
+            default_index = all_ids.index(st.session_state.selected_item_id)
+            
         selected_id = st.selectbox(
             "Fundstück auswählen", 
-            options=offene_items["id"].tolist(),
-            format_func=lambda x: f"ID {x}: {df_items.loc[df_items['id'] == x, 'titel'].values[0]}"
+            options=all_ids,
+            index=default_index,
+            format_func=lambda x: f"ID {x}: {df_items.loc[df_items['id'] == x, 'titel'].values[0]} ({df_items.loc[df_items['id'] == x, 'status'].values[0]})"
         )
         
         item_data = df_items[df_items["id"] == selected_id].iloc[0]
@@ -227,13 +238,16 @@ with tab_detail:
             st.title(item_data["titel"])
             st.write(f"**Status:** {item_data['status']}")
             st.write(f"**Kategorie:** {item_data['kategorie']}")
-            st.write(f"**Fundort:** {item_data['fundort']} ({item_data['raum']})")
+            st.write(f"**Fundort:** {item_data['fundort']} (Raum: {item_data['raum']})")
             st.write(f"**Gefunden am:** {item_data['datum']}")
             st.write(f"**Kontakt / Abgabeort:** {item_data['kontakt']}")
             
             st.divider()
-            if st.button("Das gehört mir! (Als abgeholt markieren)"):
-                df_items.loc[df_items["id"] == selected_id, "status"] = "Abgeholt"
-                save_data(df_items)
-                st.success("Der Gegenstand wurde als 'Abgeholt' markiert!")
-                st.rerun()
+            if item_data["status"] == "Offen":
+                if st.button("Das gehört mir! (Als abgeholt markieren)"):
+                    df_items.loc[df_items["id"] == selected_id, "status"] = "Abgeholt"
+                    save_data(df_items)
+                    st.success("Der Gegenstand wurde als 'Abgeholt' markiert!")
+                    st.rerun()
+            else:
+                st.warning("Dieser Gegenstand wurde bereits als abgeholt markiert.")
