@@ -42,14 +42,22 @@ def save_data(df):
     df.to_csv(DB_FILE, index=False)
 
 # ---------------------------------------------------------
-# 3. KI-INTEGRATION (KERAS MOBILENETV2)
+# 3. KI-INTEGRATION (FIX FÜR OLDER TEACHABLE MACHINE MODELS)
 # ---------------------------------------------------------
+class FixedDepthwiseConv2D(tf.keras.layers.DepthwiseConv2D):
+    def __init__(self, *args, **kwargs):
+        # Entfernt den veralteten 'groups'-Parameter für neuere Keras-Versionen
+        kwargs.pop('groups', None)
+        super().__init__(*args, **kwargs)
+
 @st.cache_resource
 def load_keras_model():
     model_path = "keras_model.h5"
     if os.path.exists(model_path):
         try:
-            return tf.keras.models.load_model(model_path, compile=False), None
+            custom_objects = {'DepthwiseConv2D': FixedDepthwiseConv2D}
+            model = tf.keras.models.load_model(model_path, custom_objects=custom_objects, compile=False)
+            return model, None
         except Exception as e:
             return None, f"Fehler beim Laden: {e}"
     else:
@@ -65,7 +73,7 @@ def predict_category(image_bytes, model):
     img_array = np.array(img, dtype=np.float32)
     img_array = np.expand_dims(img_array, axis=0)
     
-    # Teachable Machine Standard-Skalierung (-1 bis 1)
+    # Standard Teachable Machine Skalierung (-1 bis 1)
     img_array = (img_array / 127.5) - 1.0
     
     predictions = model.predict(img_array)
@@ -92,7 +100,7 @@ with st.sidebar:
         st.error(f"⚠️ {model_error}")
     else:
         st.success("✅ KI-Modell bereit!")
-        st.write("**Gefundene Klassen:**")
+        st.write("**Geladene Kategorien:**")
         for cat in CATEGORIES:
             st.write(f"- {cat}")
 
