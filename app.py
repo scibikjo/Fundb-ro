@@ -10,6 +10,7 @@ import tensorflow as tf
 
 # ---------------------------------------------------------
 # 1. KONFIGURATION & KATEGORIEN
+# (Stellen Sie sicher, dass die Reihenfolge genau der Ihres KI-Modells entspricht!)
 # ---------------------------------------------------------
 CATEGORIES = ["Elektronik", "Kleidung", "Bücher & Hefte", "Sonstiges"]
 DB_FILE = "fundbuero_db.csv"
@@ -34,14 +35,20 @@ def save_data(df):
 # ---------------------------------------------------------
 @st.cache_resource
 def load_keras_model():
-    if os.path.exists("keras_model.h5"):
-        return tf.keras.models.load_model("keras_model.h5")
-    return None
+    model_path = "keras_model.h5"
+    if os.path.exists(model_path):
+        try:
+            return tf.keras.models.load_model(model_path), None
+        except Exception as e:
+            return None, f"Fehler beim Laden des Modells: {e}"
+    else:
+        return None, f"Datei '{model_path}' wurde im GitHub-Repository nicht gefunden!"
 
 def predict_category(image_bytes, model):
     if model is None:
-        return CATEGORIES[0]
+        return None, 0.0
     
+    # Bild laden und für MobileNetV2 vorbereiten
     img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
     img = img.resize((224, 224))
     
@@ -49,12 +56,14 @@ def predict_category(image_bytes, model):
     img_array = np.expand_dims(img_array, axis=0)
     img_array = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
     
+    # Inferenz
     predictions = model.predict(img_array)
     predicted_class_index = np.argmax(predictions[0])
+    confidence = float(predictions[0][predicted_class_index])
     
     if predicted_class_index < len(CATEGORIES):
-        return CATEGORIES[predicted_class_index]
-    return CATEGORIES[0]
+        return CATEGORIES[predicted_class_index], confidence
+    return CATEGORIES[0], confidence
 
 # ---------------------------------------------------------
 # 4. BENUTZEROBERFLÄCHE (STREAMLIT UI)
@@ -63,7 +72,15 @@ st.set_page_config(page_title="Schul-Fundbüro", page_icon="🔍", layout="wide"
 st.title("🔍 Digitales Schul-Fundbüro")
 
 df_items = load_data()
-model = load_keras_model()
+model, model_error = load_keras_model()
+
+# Hinweis im Sidebar, ob KI geladen ist
+with st.sidebar:
+    st.header("KI-Status")
+    if model_error:
+        st.error(f"⚠️ KI deaktiviert: {model_error}")
+    else:
+        st.success("✅ KI-Modell (`keras_model.h5`) aktiv!")
 
 tab_home, tab_add, tab_detail = st.tabs(["📋 Dashboard", "➕ Etwas gefunden", "🔎 Detailansicht"])
 
@@ -116,8 +133,14 @@ with tab_add:
     
     if uploaded_file is not None:
         file_bytes = uploaded_file.getvalue()
-        auto_category = predict_category(file_bytes, model)
-        st.success(f"KI-Vorschlag für Kategorie: **{auto_category}**")
+        
+        predicted_cat, conf = predict_category(file_bytes, model)
+        if predicted_cat:
+            auto_category = predicted_cat
+            st.success(f"🤖 KI-Vorschlag: **{auto_category}** (Wahrscheinlichkeit: {conf*100:.1f}%)")
+        else:
+            st.warning("⚠️ KI konnte nicht genutzt werden. Bitte Kategorie manuell wählen.")
+            
         st.image(file_bytes, caption="Hochgeladenes Bild", width=200)
         
         base64_encoded = base64.b64encode(file_bytes).decode('utf-8')
