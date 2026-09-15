@@ -4,3 +4,4 @@ tf-keras
 pillow
 pandas
 numpy
+supabase
