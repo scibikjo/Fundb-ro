@@ -7,7 +7,7 @@ import streamlit as st
 from PIL import Image
 from supabase import create_client, Client
 
-# Optional: Google Gemini KI für automatische Bildeinschätzung
+# Optional: Google Gemini KI für die automatische Formular-Befüllung
 try:
     import google.generativeai as genai
     HAS_GEMINI = True
@@ -15,7 +15,7 @@ except ImportError:
     HAS_GEMINI = False
 
 # =========================================================
-# 1. STREAMLIT CONFIG & DESIGN (HTML-Look & Feel)
+# 1. STREAMLIT CONFIG & CUSTOM HTML/CSS DESIGN
 # =========================================================
 st.set_page_config(
     page_title="FundSpot – Schul-Fundbüro",
@@ -24,16 +24,22 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS für den modernen HTML/App-Look
+# Hier wird das komplette HTML/CSS-Design deiner HTML-Vorlage injiziert
 st.markdown("""
     <style>
+        /* Import der Schriftart aus dem HTML-Design */
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        
+        html, body, [class*="css"] {
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            background-color: #f4f7f5 !important;
+            color: #111827;
+        }
+
         #MainMenu, footer, header {visibility: hidden;}
         .block-container {padding-top: 1.5rem !important; padding-bottom: 3rem !important; max-width: 1100px;}
         
-        /* Globale Stile */
-        body { background-color: #f4f7f5; }
-        
-        /* Banner Header */
+        /* Hero Banner aus HTML */
         .hero-banner {
             background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);
             border-radius: 20px;
@@ -45,16 +51,17 @@ st.markdown("""
         .hero-banner h1 { font-weight: 800; font-size: 2.2rem; margin: 0; color: white; }
         .hero-banner p { color: #e8f5e9; font-size: 1rem; margin-top: 6px; margin-bottom: 0; }
 
-        /* Card Styling */
+        /* Container & Karten im HTML-Look */
         div[data-testid="stVerticalBlockBorderWrapper"] {
-            background-color: white !important;
-            border-radius: 18px !important;
+            background-color: #ffffff !important;
+            border-radius: 20px !important;
             border: 1px solid #e5e7eb !important;
             box-shadow: 0 4px 16px rgba(0,0,0,0.04) !important;
-            padding: 16px !important;
+            padding: 18px !important;
+            transition: all 0.2s ease;
         }
         
-        /* Badges */
+        /* HTML Badges */
         .badge-offen {
             background-color: #e8f5e9; color: #1b5e20;
             padding: 4px 12px; border-radius: 12px;
@@ -67,18 +74,26 @@ st.markdown("""
             font-weight: 800; font-size: 0.75rem; text-transform: uppercase;
             display: inline-block;
         }
-        
-        .user-tag {
+        .uploader-tag {
             background-color: #f1f5f9; color: #475569;
             padding: 4px 10px; border-radius: 8px;
             font-weight: 600; font-size: 0.8rem;
+            display: inline-block;
+        }
+
+        /* Buttons wie im HTML Styled */
+        .stButton>button {
+            border-radius: 14px !important;
+            font-weight: 700 !important;
+            border: none !important;
+            transition: all 0.2s !important;
         }
         
-        /* Buttons Schön gestalten */
-        .stButton>button {
+        /* Input Felder stylen */
+        .stTextInput>div>div>input, .stSelectbox>div>div>div {
             border-radius: 12px !important;
-            font-weight: 700 !important;
-            transition: all 0.2s !important;
+            border: 1px solid #e5e7eb !important;
+            background-color: #f9fafb !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -155,16 +170,12 @@ def update_item_status(item_id, status, claimer=""):
     for item in items:
         if str(item["id"]) == str(item_id):
             item["status"] = status
-            if claimer:
-                item["beansprucht_von"] = claimer
+            item["beansprucht_von"] = claimer
             break
             
     if supabase:
         try:
-            supabase.table("fundstuecke").update({
-                "status": status,
-                "beansprucht_von": claimer
-            }).eq("id", item_id).execute()
+            supabase.table("fundstuecke").update({"status": status, "beansprucht_von": claimer}).eq("id", item_id).execute()
         except Exception:
             pass
     save_items(items)
@@ -192,7 +203,7 @@ def add_new_item(item_dict):
     save_items(items)
 
 # =========================================================
-# 3. KI-ANALSYE (GEMINI / VISION)
+# 3. KI-ANALSYE (AUTOMATISCHES AUSFÜLLEN)
 # =========================================================
 def analyze_image_with_ai(image_file):
     gemini_key = st.secrets.get("GEMINI_API_KEY")
@@ -204,9 +215,10 @@ def analyze_image_with_ai(image_file):
             img = Image.open(image_file)
             prompt = """
             Analysiere dieses Fundstück-Bild für ein Schul-Fundbüro.
-            Gib ein einfaches JSON-Objekt zurück mit folgenden Keys:
-            - titel: Kurzer prägnanter deutscher Name (z.B. "Roter Nike Rucksack")
-            - kategorie: Eine der folgenden ("Kleidung", "Elektronik", "Bücher & Hefte", "Sonstiges")
+            Gib ein valides JSON-Objekt zurück mit folgenden Werten:
+            - titel: Prägnanter deutscher Name (z.B. "Grüner Nike Rucksack")
+            - kategorie: Exakt eine dieser ("Kleidung", "Elektronik", "Bücher & Hefte", "Sonstiges")
+            - vermuteter_ort: Ein möglicher Ort in der Schule wo man das verliert (z.B. "Pausenhof", "Turnhalle", "Klassenzimmer", "Unbekannt")
             """
             res = model.generate_content([prompt, img])
             text = res.text.replace("```json", "").replace("```", "").strip()
@@ -214,8 +226,7 @@ def analyze_image_with_ai(image_file):
         except Exception:
             pass
     
-    # Fallback, falls kein Key vorhanden ist
-    return {"titel": "Neues Fundstück", "kategorie": "Sonstiges"}
+    return {"titel": "", "kategorie": "Sonstiges", "vermuteter_ort": ""}
 
 # =========================================================
 # 4. SESSION STATE & NAVIGATION
@@ -227,13 +238,21 @@ if "is_admin" not in st.session_state:
 if "tab" not in st.session_state:
     st.session_state.tab = "entdecken"
 
+# Session States für KI-ausgefüllte Felder
+if "ai_title" not in st.session_state:
+    st.session_state.ai_title = ""
+if "ai_category" not in st.session_state:
+    st.session_state.ai_category = "Sonstiges"
+if "ai_ort" not in st.session_state:
+    st.session_state.ai_ort = ""
+
 # =========================================================
 # 5. HEADER & NUTZER-LEISTE
 # =========================================================
 st.markdown("""
     <div class="hero-banner">
         <h1>🌱 FundSpot</h1>
-        <p>Das digitale Schul-Fundbüro – Fundstücke eintragen, KI-Erkennung nutzen & Wiederfinden</p>
+        <p>Das digitale Schul-Fundbüro – Entdecken, Automatisch Erkennen & Wiederfinden</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -241,7 +260,7 @@ col_u1, col_u2, col_u3 = st.columns([2, 2, 1])
 with col_u1:
     st.session_state.current_user = st.text_input("👤 Dein Name / Klasse:", value=st.session_state.current_user)
 with col_u2:
-    passcode = st.text_input("🔑 Admin-Passcode:", type="password", placeholder="Optional für Admin-Rechte")
+    passcode = st.text_input("🔑 Admin-Passcode:", type="password", placeholder="Für globale Löschrechte")
     st.session_state.is_admin = (passcode == "admin123")
 with col_u3:
     st.write("")
@@ -251,34 +270,32 @@ with col_u3:
 
 st.divider()
 
-# Tab Navigation Buttons
+# Navigation Tabs im HTML-Stil
 col_b1, col_b2 = st.columns(2)
 with col_b1:
     if st.button("🔍 Entdecken & Suchen", use_container_width=True, type="primary" if st.session_state.tab == "entdecken" else "secondary"):
         st.session_state.tab = "entdecken"
         st.rerun()
 with col_b2:
-    if st.button("➕ Neues Fundstück hochladen", use_container_width=True, type="primary" if st.session_state.tab == "hochladen" else "secondary"):
+    if st.button("➕ Fundstück hochladen", use_container_width=True, type="primary" if st.session_state.tab == "hochladen" else "secondary"):
         st.session_state.tab = "hochladen"
         st.rerun()
 
 st.write("")
 
 # =========================================================
-# TAB 1: ENTDECKEN & GEGENSTÄNDE (MIT BEANSPRUCHEN & LÖSCHEN)
+# TAB 1: ENTDECKEN (KARTEN IM HTML-LOOK + BUTTONS)
 # =========================================================
 if st.session_state.tab == "entdecken":
     
-    # Such- und Filterleiste
     c1, c2 = st.columns([3, 1])
     with c1:
-        search = st.text_input("🔎 Suche nach Gegenstand, Ort...", placeholder="z. B. Jacke, Mensa, Nike")
+        search = st.text_input("🔎 Suche...", placeholder="Rucksack, Jacke, Mensa, Halle...")
     with c2:
         category = st.selectbox("Kategorie Filter", ["Alle", "Kleidung", "Elektronik", "Bücher & Hefte", "Sonstiges"])
 
     all_items = load_items()
     
-    # Filtern
     filtered = []
     for item in all_items:
         match_search = search.lower() in str(item.get("titel", "")).lower() or search.lower() in str(item.get("fundort", "")).lower()
@@ -289,21 +306,19 @@ if st.session_state.tab == "entdecken":
     if not filtered:
         st.info("Keine Fundstücke gefunden.")
     else:
-        # Karten im Grid anzeigen (3 Spalten)
+        # Karten-Grid (3 Spalten)
         cols = st.columns(3)
         for idx, item in enumerate(filtered):
             with cols[idx % 3]:
                 with st.container(border=True):
-                    # Bild anzeigen
+                    # Bildanzeige
                     img_src = item.get("bild_base64", "")
-                    if img_src and img_src.startswith("data:image"):
-                        st.image(img_src, use_container_width=True)
-                    elif img_src and img_src.startswith("http"):
+                    if img_src and (img_src.startswith("data:image") or img_src.startswith("http")):
                         st.image(img_src, use_container_width=True)
                     else:
                         st.image("https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop&q=80", use_container_width=True)
 
-                    # Titel & Meta
+                    # Karten-Inhalt
                     st.subheader(item.get("titel", "Unbenannt"))
                     
                     # Status Badge
@@ -315,15 +330,15 @@ if st.session_state.tab == "entdecken":
                         
                     st.write(f"📍 **Ort:** {item.get('fundort', '-')} ({item.get('raum', '-')})")
                     st.write(f"🔑 **Abgabe bei:** {item.get('kontakt', 'Sekretariat')}")
-                    st.markdown(f'<span class="user-tag">👤 Hochgeladen von: {item.get("uploader", "Anonym")}</span>', unsafe_allow_html=True)
+                    st.markdown(f'<span class="uploader-tag">👤 Hochgeladen von: {item.get("uploader", "Anonym")}</span>', unsafe_allow_html=True)
                     
                     st.write("")
                     
-                    # --- ACTION BUTTON 1: "Das gehört mir!" ---
+                    # 1. BUTTON: "Das gehört mir!"
                     if status == "Offen":
-                        if st.button(f"🙋‍♂️ Das gehört mir!", key=f"claim_{item['id']}", use_container_width=True):
+                        if st.button("🙋‍♂️ Das gehört mir!", key=f"claim_{item['id']}", use_container_width=True):
                             update_item_status(item["id"], "Beansprucht", st.session_state.current_user)
-                            st.toast("✅ Super! Es wurde als beansprucht markiert.")
+                            st.toast("✅ Als beansprucht markiert!")
                             st.rerun()
                     elif status == "Beansprucht":
                         if item.get("beansprucht_von") == st.session_state.current_user or st.session_state.is_admin:
@@ -331,65 +346,66 @@ if st.session_state.tab == "entdecken":
                                 update_item_status(item["id"], "Offen", "")
                                 st.rerun()
 
-                    # --- ACTION BUTTON 2: LÖSCHEN (Ersteller ODER Admin) ---
+                    # 2. BUTTON: LÖSCHEN (Ersteller ODER Admin)
                     is_owner = (item.get("uploader") == st.session_state.current_user)
                     if is_owner or st.session_state.is_admin:
-                        if st.button(f"🗑️ Löschen", key=f"del_{item['id']}", type="secondary", use_container_width=True):
+                        if st.button("🗑️ Löschen", key=f"del_{item['id']}", type="secondary", use_container_width=True):
                             delete_item(item["id"])
-                            st.toast("Eintrag erfolgreich gelöscht!")
+                            st.toast("Eintrag gelöscht!")
                             st.rerun()
 
 # =========================================================
-# TAB 2: HOCHLADEN (MIT KI-ERKENNUNG)
+# TAB 2: HOCHLADEN (MIT KI-ERKENNUNG & VORAUSFÜLLUNG)
 # =========================================================
 elif st.session_state.tab == "hochladen":
-    st.subheader("📸 Neues Fundstück mit KI-Erkennung eintragen")
+    st.subheader("📸 Neues Fundstück eintragen")
     
     with st.container(border=True):
-        uploaded_file = st.file_uploader("1. Foto des Fundstücks auswählen", type=["jpg", "jpeg", "png", "webp"])
+        uploaded_file = st.file_uploader("1. Wähle ein Foto aus", type=["jpg", "jpeg", "png", "webp"])
         
-        ai_titel = ""
-        ai_kat = "Sonstiges"
         b64_image_str = ""
         
         if uploaded_file is not None:
-            # Bild anzeigen
-            st.image(uploaded_file, caption="Vorschau", width=300)
+            st.image(uploaded_file, caption="Hochgeladenes Foto", width=250)
             
-            # Base64 String erstellen
             bytes_data = uploaded_file.getvalue()
             b64_image_str = f"data:image/jpeg;base64,{base64.b64encode(bytes_data).decode()}"
             
-            # KI-Analyse durchführen
-            with st.spinner("🤖 KI analysiert das Foto..."):
-                ai_res = analyze_image_with_ai(uploaded_file)
-                ai_titel = ai_res.get("titel", "")
-                ai_kat = ai_res.get("kategorie", "Sonstiges")
-                st.success("KI hat das Bild erkannt! Du kannst die Daten unten anpassen.")
+            # KI-Erkennung ausführen
+            if st.button("🤖 Foto von KI analysieren lassen", use_container_width=True):
+                with st.spinner("KI liest Gegenstand, Kategorie & Ort aus..."):
+                    ai_data = analyze_image_with_ai(uploaded_file)
+                    st.session_state.ai_title = ai_data.get("titel", "")
+                    st.session_state.ai_category = ai_data.get("kategorie", "Sonstiges")
+                    st.session_state.ai_ort = ai_data.get("vermuteter_ort", "")
+                    st.success("✅ KI hat das Formular für dich ausgefüllt!")
 
-        # Formular mit KI-Vorschlägen
+        st.divider()
+        st.write("### 2. Details überprüfen & Veröffentlichen")
+
+        # Formular nimmt automatisch die Werte der KI an
         with st.form("add_form"):
-            titel = st.text_input("Gegenstand / Bezeichnung *", value=ai_titel, placeholder="z. B. Grüner Nike Rucksack")
+            titel = st.text_input("Gegenstand / Bezeichnung *", value=st.session_state.ai_title, placeholder="z. B. Roter Nike Rucksack")
             
             c_kat, c_ort = st.columns(2)
             with c_kat:
                 kategorien = ["Sonstiges", "Kleidung", "Elektronik", "Bücher & Hefte"]
-                kat_index = kategorien.index(ai_kat) if ai_kat in kategorien else 0
-                kategorie = st.selectbox("Kategorie", kategorien, index=kat_index)
+                idx = kategorien.index(st.session_state.ai_category) if st.session_state.ai_category in kategorien else 0
+                kategorie = st.selectbox("Kategorie", kategorien, index=idx)
             with c_ort:
-                fundort = st.text_input("Fundort *", placeholder="z. B. Mensa, Pausenhof")
+                fundort = st.text_input("Fundort *", value=st.session_state.ai_ort, placeholder="z. B. Mensa, Turnhalle")
 
             c_raum, c_kontakt = st.columns(2)
             with c_raum:
                 raum = st.text_input("Raum / Bereich", placeholder="z. B. EG oder Raum 102")
             with c_kontakt:
-                kontakt = st.text_input("Wo abgegeben? / Kontakt", placeholder="z. B. Sekretariat, Hausmeister")
+                kontakt = st.text_input("Abgabeort / Kontakt", placeholder="z. B. Sekretariat")
 
-            submit = st.form_submit_button("🚀 Fundstück veröffentlichen", use_container_width=True, type="primary")
+            submit = st.form_submit_button("🚀 Fundstück hochladen", use_container_width=True, type="primary")
 
             if submit:
                 if not titel or not fundort:
-                    st.error("Bitte fülle mindestens den Titel und den Fundort aus.")
+                    st.error("Bitte gib mindestens einen Titel und den Fundort an.")
                 else:
                     new_entry = {
                         "id": int(datetime.datetime.now().timestamp()),
@@ -406,5 +422,10 @@ elif st.session_state.tab == "hochladen":
                     }
                     add_new_item(new_entry)
                     st.toast("🎉 Fundstück erfolgreich eingetragen!")
+                    
+                    # Session zurücksetzen & wechseln
+                    st.session_state.ai_title = ""
+                    st.session_state.ai_category = "Sonstiges"
+                    st.session_state.ai_ort = ""
                     st.session_state.tab = "entdecken"
                     st.rerun()
