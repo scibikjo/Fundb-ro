@@ -10,76 +10,101 @@ import tensorflow as tf
 from supabase import create_client, Client
 
 # ---------------------------------------------------------
-# 1. PAGE CONFIG & CUSTOM CSS (MODERNES DESIGN)
+# 1. PAGE CONFIG & MODERNES STYLING (CUSTOM CSS)
 # ---------------------------------------------------------
-st.set_page_config(page_title="Schul-Fundbüro", page_icon="🔍", layout="wide")
+st.set_page_config(
+    page_title="Schul-Fundbüro", 
+    page_icon="🔍", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 st.markdown("""
 <style>
-    /* Haupt-Hintergrund & Schrift */
+    /* Hauptlayout & Farben */
     .stApp {
-        background-color: #f8f9fa;
+        background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
+    /* Titel-Styling */
+    .main-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #1e293b;
+        margin-bottom: 0.2rem;
+    }
+    .sub-title {
+        color: #64748b;
+        font-size: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
     /* Karten-Design für Fundstücke */
     div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        background-color: #ffffff;
-        border-radius: 12px !important;
-        border: 1px solid #e9ecef !important;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        padding: 16px;
+        background-color: #ffffff !important;
+        border-radius: 16px !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03) !important;
+        transition: all 0.25s ease-in-out !important;
+        padding: 18px !important;
     }
     div[data-testid="stVerticalBlock"] > div[style*="border"]:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.08);
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08) !important;
+        border-color: #cbd5e1 !important;
     }
-    
-    /* Status Badges */
-    .badge-offen {
-        background-color: #d1e7dd;
-        color: #0f5132;
-        padding: 4px 10px;
+
+    /* Status-Badges */
+    .badge {
+        padding: 6px 12px;
         border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.85rem;
+        font-weight: 700;
+        font-size: 0.78rem;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
         display: inline-block;
+    }
+    .badge-offen {
+        background-color: #dcfce7;
+        color: #15803d;
+        border: 1px solid #bbf7d0;
     }
     .badge-abgeholt {
-        background-color: #f8d7da;
-        color: #842029;
-        padding: 4px 10px;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.85rem;
-        display: inline-block;
+        background-color: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
     }
-    
-    /* Tab Styling */
+
+    /* Tabs Styling */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
+        gap: 10px;
+        background-color: transparent;
     }
     .stTabs [data-baseweb="tab"] {
-        border-radius: 8px;
-        padding: 8px 16px;
-        background-color: #ffffff;
-        border: 1px solid #dee2e6;
+        border-radius: 10px !important;
+        padding: 10px 20px !important;
+        background-color: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        font-weight: 600 !important;
+        color: #475569 !important;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #0d6efd !important;
-        color: white !important;
+        background-color: #2563eb !important;
+        color: #ffffff !important;
+        border-color: #2563eb !important;
+        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25) !important;
     }
-    
-    /* Buttons verfeinern */
-    .stButton > button {
-        border-radius: 8px !important;
-        font-weight: 500;
+
+    /* Input-Felder abrunden */
+    .stTextInput > div > div > input, .stSelectbox > div > div {
+        border-radius: 10px !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. SUPABASE DATENBANK-VERBINDUNG
+# 2. SUPABASE DATENBANK
 # ---------------------------------------------------------
 @st.cache_resource
 def init_supabase():
@@ -160,11 +185,11 @@ def predict_category(image_bytes, model):
     return CATEGORIES[0], confidence
 
 # ---------------------------------------------------------
-# 4. BENUTZEROBERFLÄCHE (UI & STATE)
+# 4. BENUTZEROBERFLÄCHE & STATE MANAGEMENT
 # ---------------------------------------------------------
-st.title("🔍 Digitales Schul-Fundbüro")
+st.markdown('<div class="main-title">🔍 Digitales Schul-Fundbüro</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Verlorene Gegenstände finden, eintragen und verwalten.</div>', unsafe_allow_html=True)
 
-# State Management
 if "selected_item_id" not in st.session_state:
     st.session_state.selected_item_id = None
 if "upload_key" not in st.session_state:
@@ -175,41 +200,48 @@ if "success_msg" not in st.session_state:
 df_items = load_data()
 model, model_error = load_keras_model()
 
+# --- SIDEBAR (STATUS & ADMIN-LOGIN) ---
 with st.sidebar:
-    st.header("⚙️ System-Status")
-    if supabase:
-        st.success("☁️ Supabase Cloud-DB aktiv")
+    st.header("🔑 Admin & Status")
+    
+    # Passwort-Abfrage für Owner/Admin
+    admin_pw_input = st.text_input("Admin-Passwort (zum Löschen)", type="password")
+    ADMIN_PW = st.secrets.get("ADMIN_PASSWORD", "admin123")
+    is_admin = (admin_pw_input == ADMIN_PW)
+    
+    if is_admin:
+        st.success("🔓 Admin-Modus aktiv: Löschen freigeschaltet!")
     else:
-        st.warning("⚠️ Lokaler CSV-Modus")
+        st.caption("ℹ️ Als Schülerschaft/Lehrkraft hast du Vollzugriff auf das Eintragen und als 'Abgeholt' markieren.")
+        
+    st.divider()
+    
+    st.subheader("System Status")
+    if supabase:
+        st.success("☁️ Cloud-Datenbank verbunden")
+    else:
+        st.warning("⚠️ CSV-Lokalmodus")
         
     if model_error:
         st.error(f"⚠️ {model_error}")
     else:
-        st.success("🤖 KI-Modell bereit")
-    
-    st.divider()
-    st.markdown("**Verfügbare Kategorien:**")
-    for cat in CATEGORIES:
-        st.markdown(f"- `{cat}`")
+        st.success("🤖 KI-Erkennung aktiv")
 
-tab_home, tab_add, tab_detail = st.tabs(["📋 Dashboard", "➕ Etwas gefunden", "🔎 Detailansicht"])
+tab_home, tab_add, tab_detail = st.tabs(["📋 Übersicht & Suche", "➕ Etwas melden", "🔎 Details & Status"])
 
 # --- TAB 1: DASHBOARD ---
 with tab_home:
-    st.header("Aktuelle Fundstücke")
-    
-    # Erfolgsmeldung anzeigen, wenn gerade ein Item hochgeladen wurde
     if st.session_state.success_msg:
         st.success(st.session_state.success_msg)
         st.session_state.success_msg = None
     
     col_search, col_cat, col_status = st.columns([2, 1, 1])
     with col_search:
-        search_query = st.text_input("🔍 Suchbegriff", placeholder="z.B. Jacke, Turnhalle...")
+        search_query = st.text_input("🔍 Suchbegriff", placeholder="Suchen nach Titel, Ort...")
     with col_cat:
-        filter_cat = st.selectbox("Kategorie Filter", ["Alle"] + CATEGORIES)
+        filter_cat = st.selectbox("Kategorie", ["Alle"] + CATEGORIES)
     with col_status:
-        filter_status = st.selectbox("Status Filter", ["Alle", "Offen", "Abgeholt"])
+        filter_status = st.selectbox("Status", ["Alle", "Offen", "Abgeholt"])
     
     filtered_df = df_items.copy()
     if not filtered_df.empty:
@@ -224,7 +256,7 @@ with tab_home:
             filtered_df = filtered_df[filtered_df["status"] == filter_status]
         
     if filtered_df.empty:
-        st.info("Keine passenden Fundstücke vorhanden.")
+        st.info("Keine Fundstücke vorhanden.")
     else:
         cols = st.columns(3)
         for idx, row in filtered_df.reset_index(drop=True).iterrows():
@@ -236,22 +268,21 @@ with tab_home:
                     st.subheader(row["titel"])
                     
                     status_class = "badge-offen" if row["status"] == "Offen" else "badge-abgeholt"
-                    st.markdown(f'<span class="{status_class}">{row["status"]}</span>', unsafe_allow_html=True)
+                    st.markdown(f'<span class="badge {status_class}">{row["status"]}</span>', unsafe_allow_html=True)
                     st.write("")
                     
                     st.markdown(f"**🏷️ Kategorie:** {row['kategorie']}")
-                    st.markdown(f"**📍 Fundort:** {row['fundort']} (Raum: {row['raum']})")
+                    st.markdown(f"**📍 Ort:** {row['fundort']} *(Raum: {row['raum']})*")
                     st.markdown(f"**📅 Datum:** {row['datum']}")
                     
                     if st.button("🔎 Details ansehen", key=f"btn_{row['id']}", use_container_width=True):
                         st.session_state.selected_item_id = int(row["id"])
                         st.rerun()
 
-# --- TAB 2: FORMULAR "ETWAS GEFUNDEN" ---
+# --- TAB 2: GEGENSTAND MELDEN ---
 with tab_add:
-    st.header("Neues Fundstück eintragen")
+    st.subheader("Gefundenen Gegenstand eintragen")
     
-    # Dynamic Key setzt den Uploader nach dem Speichern zurück
     uploaded_file = st.file_uploader(
         "Foto des Gegenstands hochladen", 
         type=["jpg", "jpeg", "png"], 
@@ -266,28 +297,27 @@ with tab_add:
         predicted_cat, conf = predict_category(file_bytes, model)
         if predicted_cat:
             auto_category = predicted_cat
-            st.info(f"🤖 KI-Klassifizierung: **{auto_category}** ({conf*100:.1f}% Sicherheit)")
+            st.info(f"🤖 KI-Vorschlag: **{auto_category}** ({conf*100:.1f}% Sicherheit)")
         
-        st.image(file_bytes, caption="Vorschau", width=220)
+        st.image(file_bytes, caption="Vorschau", width=200)
         base64_encoded = base64.b64encode(file_bytes).decode('utf-8')
         img_data_url = f"data:image/jpeg;base64,{base64_encoded}"
 
     with st.form("add_item_form", clear_on_submit=True):
-        titel = st.text_input("Titel / Gegenstand *", placeholder="z.B. Blaue Nike Sportjacke")
+        titel = st.text_input("Gegenstand / Titel *", placeholder="z.B. Blaue Nike Sportjacke")
         kategorie_index = CATEGORIES.index(auto_category) if auto_category in CATEGORIES else 0
         kategorie = st.selectbox("Kategorie", CATEGORIES, index=kategorie_index)
-        fundort = st.text_input("Fundort *", placeholder="z.B. Haupteingang / Mensa")
-        raum = st.text_input("Raumnummer / Bereich", placeholder="z.B. Raum 102")
-        kontakt = st.text_input("Finder / Abgabeort", placeholder="z.B. Hausmeister / Sekretariat")
+        fundort = st.text_input("Fundort *", placeholder="z.B. Sporthalle / Mensa")
+        raum = st.text_input("Raumnummer / Genauere Angabe", placeholder="z.B. Umkleide 2")
+        kontakt = st.text_input("Abgabeort / Finder", placeholder="z.B. Abgegeben im Sekretariat")
         
-        # Visueller Submit Button
-        submitted = st.form_submit_button("💾 Fundstück jetzt speichern", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("💾 Fundstück eintragen", type="primary", use_container_width=True)
         
         if submitted:
             if not titel or not fundort:
-                st.error("Bitte füllen Sie mindestens die Felder **Titel** und **Fundort** aus.")
+                st.error("Bitte mindestens **Titel** und **Fundort** ausfüllen.")
             else:
-                with st.spinner("Fundstück wird in der Datenbank gespeichert..."):
+                with st.spinner("Fundstück wird gespeichert..."):
                     today_str = datetime.date.today().strftime("%Y-%m-%d")
                     new_row = {
                         "titel": titel,
@@ -307,17 +337,16 @@ with tab_add:
                         df_items = pd.concat([df_items, pd.DataFrame([new_row])], ignore_index=True)
                         df_items.to_csv("fundbuero_db.csv", index=False)
                     
-                    # Verhindert Mehrfach-Uploads durch Reset des Uploader-Keys
                     st.session_state.upload_key += 1
-                    st.session_state.success_msg = f"✅ Success! **'{titel}'** wurde erfolgreich im Fundbüro eingetragen."
+                    st.session_state.success_msg = f"✅ Erfolgreich gespeichert: **'{titel}'** wurde eingetragen."
                     st.rerun()
 
-# --- TAB 3: DETAILANSICHT & VERWALTUNG ---
+# --- TAB 3: DETAILS & STATUS ÄNDERN ---
 with tab_detail:
-    st.header("Gegenstand-Details & Verwaltung")
+    st.subheader("Detailansicht & Statusänderung")
     
     if df_items.empty:
-        st.info("Derzeit gibt es keine eingetragenen Fundstücke.")
+        st.info("Es sind aktuell keine Fundstücke in der Datenbank.")
     else:
         all_ids = df_items["id"].tolist()
         
@@ -326,7 +355,7 @@ with tab_detail:
             default_index = all_ids.index(st.session_state.selected_item_id)
             
         selected_id = st.selectbox(
-            "Fundstück zur Detailansicht auswählen", 
+            "Fundstück wählen", 
             options=all_ids,
             index=default_index,
             format_func=lambda x: f"ID {x}: {df_items.loc[df_items['id'] == x, 'titel'].values[0]} [{df_items.loc[df_items['id'] == x, 'status'].values[0]}]"
@@ -338,43 +367,47 @@ with tab_detail:
         with col_img:
             if pd.notna(item_data["bild_base64"]) and str(item_data["bild_base64"]).startswith("data:image"):
                 st.image(item_data["bild_base64"], use_container_width=True)
+            else:
+                st.info("Kein Bild vorhanden.")
         
         with col_info:
             st.title(item_data["titel"])
             
             status_class = "badge-offen" if item_data["status"] == "Offen" else "badge-abgeholt"
-            st.markdown(f'<span class="{status_class}">{item_data["status"]}</span>', unsafe_allow_html=True)
+            st.markdown(f'<span class="badge {status_class}">{item_data["status"]}</span>', unsafe_allow_html=True)
             st.write("")
             
             st.markdown(f"**🏷️ Kategorie:** {item_data['kategorie']}")
-            st.markdown(f"**📍 Fundort:** {item_data['fundort']} (Raum: {item_data['raum']})")
+            st.markdown(f"**📍 Fundort:** {item_data['fundort']} *(Raum: {item_data['raum']})*")
             st.markdown(f"**📅 Gefunden am:** {item_data['datum']}")
-            st.markdown(f"**👤 Kontakt / Abgabeort:** {item_data['kontakt']}")
+            st.markdown(f"**👤 Kontakt / Aufbewahrung:** {item_data['kontakt']}")
             
             st.divider()
             
-            col_action1, col_action2 = st.columns(2)
-            
-            with col_action1:
-                if item_data["status"] == "Offen":
-                    if st.button("🙋‍♂️ Das gehört mir! (Abgeholt)", use_container_width=True):
-                        if supabase:
-                            supabase.table("fundstuecke").update({"status": "Abgeholt"}).eq("id", selected_id).execute()
-                        else:
-                            df_items.loc[df_items["id"] == selected_id, "status"] = "Abgeholt"
-                            df_items.to_csv("fundbuero_db.csv", index=False)
-                        st.success("Gegenstand wurde als 'Abgeholt' markiert.")
-                        st.rerun()
-                else:
-                    st.info("Bereits als abgeholt markiert.")
+            # --- STATUS ÄNDERN (FÜR JEDEN) ---
+            if item_data["status"] == "Offen":
+                if st.button("🙋‍♂️ Das gehört mir! (Als abgeholt markieren)", use_container_width=True, type="primary"):
+                    if supabase:
+                        supabase.table("fundstuecke").update({"status": "Abgeholt"}).eq("id", selected_id).execute()
+                    else:
+                        df_items.loc[df_items["id"] == selected_id, "status"] = "Abgeholt"
+                        df_items.to_csv("fundbuero_db.csv", index=False)
+                    st.success("Gegenstand erfolgreich als 'Abgeholt' markiert!")
+                    st.rerun()
+            else:
+                st.info("Dieser Gegenstand wurde bereits abgeholt.")
 
-            with col_action2:
-                if st.button("🗑️ Eintrag löschen", type="primary", use_container_width=True):
+            # --- LÖSCHEN (NUR FÜR ADMINS) ---
+            st.write("")
+            if is_admin:
+                if st.button("🗑️ Eintrag unwiderruflich löschen", use_container_width=True):
                     if supabase:
                         supabase.table("fundstuecke").delete().eq("id", selected_id).execute()
                     else:
                         df_items = df_items[df_items["id"] != selected_id]
                         df_items.to_csv("fundbuero_db.csv", index=False)
                     st.session_state.selected_item_id = None
-                    st.success("Eintrag aus Datenbank gelöscht.")
+                    st.success("Eintrag gelöscht!")
                     st.rerun()
+            else:
+                st.caption("🔒 *Nur der Owner/Admin kann Fundstücke komplett löschen (Passwort-Eingabe in der Sidebar erforderlich).*")
