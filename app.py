@@ -10,112 +10,124 @@ import tensorflow as tf
 from supabase import create_client, Client
 
 # ---------------------------------------------------------
-# 1. PAGE CONFIG & DEEP MODERN CSS (RADIKALES DESIGN)
+# 1. PAGE CONFIG & MODERNES GREEN/LIGHT DESIGN (WIE BILD)
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Schul-Fundbüro Premium", 
-    page_icon="🔍", 
+    page_title="Schul-Fundbüro", 
+    page_icon="🌱", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Injektion von direktem Custom CSS für das gesamte Theme
+# Frisches Grün-Weiß Styling für beste Lesbarkeit
 st.markdown("""
 <style>
-    /* Hintergrund & Hauptfarben */
+    /* Haupt-Hintergrund */
     .stApp {
-        background: #0f172a !important;
-        color: #f8fafc !important;
+        background-color: #f4f7f4 !important;
+        color: #1e293b !important;
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
 
     /* Sidebar Styling */
     section[data-testid="stSidebar"] {
-        background-color: #1e293b !important;
-        border-right: 1px solid #334155 !important;
+        background-color: #ffffff !important;
+        border-right: 1px solid #e2e8f0 !important;
     }
 
     /* Überschriften */
     h1, h2, h3, h4, h5, h6 {
+        color: #0f291e !important;
+        font-weight: 700 !important;
+    }
+
+    /* Grüne Hero-Header Karte */
+    .hero-header {
+        background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
         color: #ffffff !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 24px;
+        border-radius: 20px;
+        margin-bottom: 24px;
+        box-shadow: 0 10px 20px rgba(46, 125, 50, 0.15);
+    }
+    .hero-header h1 {
+        color: #ffffff !important;
+        margin: 0;
+        font-size: 2.2rem;
+    }
+    .hero-header p {
+        color: #e8f5e9 !important;
+        margin-top: 6px;
+        font-size: 1rem;
     }
 
-    /* Custom Cards für Fundstücke */
-    .card-container {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 16px;
-        padding: 16px;
-        margin-bottom: 20px;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        transition: transform 0.2s ease, border-color 0.2s ease;
+    /* Karten-Design (Heller Hintergrund, perfekt lesbarer dunkler Text) */
+    div[data-testid="stVerticalBlock"] > div[style*="border"] {
+        background-color: #ffffff !important;
+        border-radius: 20px !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04) !important;
+        transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+        padding: 16px !important;
     }
-    .card-container:hover {
+    div[data-testid="stVerticalBlock"] > div[style*="border"]:hover {
         transform: translateY(-4px);
-        border-color: #3b82f6;
-    }
-
-    .card-img {
-        width: 100%;
-        height: 200px;
-        object-fit: cover;
-        border-radius: 12px;
-        margin-bottom: 12px;
+        box-shadow: 0 12px 24px rgba(46, 125, 50, 0.12) !important;
+        border-color: #a5d6a7 !important;
     }
 
     /* Badges */
     .badge-offen {
-        background-color: #065f46;
-        color: #34d399;
-        padding: 4px 12px;
-        border-radius: 9999px;
+        background-color: #e8f5e9;
+        color: #1b5e20;
+        padding: 6px 14px;
+        border-radius: 20px;
         font-size: 0.8rem;
         font-weight: 700;
         display: inline-block;
-        border: 1px solid #059669;
+        border: 1px solid #a5d6a7;
     }
     .badge-abgeholt {
-        background-color: #881337;
-        color: #fecdd3;
-        padding: 4px 12px;
-        border-radius: 9999px;
+        background-color: #ffebee;
+        color: #c62828;
+        padding: 6px 14px;
+        border-radius: 20px;
         font-size: 0.8rem;
         font-weight: 700;
         display: inline-block;
-        border: 1px solid #be123c;
+        border: 1px solid #ffcdd2;
     }
 
-    /* Streamlit Tabs Anpassen */
+    /* Tabs Styling */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
+        gap: 8px;
         background-color: transparent;
     }
     .stTabs [data-baseweb="tab"] {
-        border-radius: 10px !important;
-        padding: 12px 24px !important;
-        background-color: #1e293b !important;
-        border: 1px solid #334155 !important;
-        color: #94a3b8 !important;
+        border-radius: 12px !important;
+        padding: 10px 20px !important;
+        background-color: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        color: #475569 !important;
         font-weight: 600;
     }
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+        background-color: #2e7d32 !important;
         color: #ffffff !important;
-        border-color: #3b82f6 !important;
-        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+        border-color: #2e7d32 !important;
+        box-shadow: 0 4px 12px rgba(46, 125, 50, 0.25);
     }
 
     /* Input-Felder & Buttons */
     .stTextInput > div > div > input, .stSelectbox > div > div {
-        background-color: #1e293b !important;
-        color: #ffffff !important;
-        border-radius: 10px !important;
-        border: 1px solid #334155 !important;
+        background-color: #ffffff !important;
+        color: #0f291e !important;
+        border-radius: 12px !important;
+        border: 1px solid #cbd5e1 !important;
     }
     .stButton > button {
-        border-radius: 10px !important;
+        border-radius: 12px !important;
         font-weight: 600 !important;
-        transition: all 0.2s ease !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -204,11 +216,15 @@ def predict_category(image_bytes, model):
 # ---------------------------------------------------------
 # 4. BENUTZEROBERFLÄCHE & STATE
 # ---------------------------------------------------------
-st.markdown("<h1 style='text-align: center; font-size: 2.8rem;'>🔍 Digitales Schul-Fundbüro</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 1.1rem; margin-bottom: 2rem;'>Finden, Melden und Verwalten von Schulfundsachen</p>", unsafe_allow_html=True)
+st.markdown("""
+<div class="hero-header">
+    <h1>🌱 Schul-Fundbüro</h1>
+    <p>Gegenstände schnell wiederfinden, eintragen und verwalten</p>
+</div>
+""", unsafe_allow_html=True)
 
-if "selected_item_id" not in st.session_state:
-    st.session_state.selected_item_id = None
+if "active_dialog_item" not in st.session_state:
+    st.session_state.active_dialog_item = None
 if "upload_key" not in st.session_state:
     st.session_state.upload_key = 0
 if "success_msg" not in st.session_state:
@@ -225,7 +241,7 @@ with st.sidebar:
     is_admin = (admin_pw_input == ADMIN_PW)
     
     if is_admin:
-        st.success("🔓 Owner-Modus: Löschen aktiv")
+        st.success("🔓 Owner-Modus aktiv: Löschen erlaubt")
     else:
         st.info("🔒 Normaler Modus (Eintragen & Beanspruchen freigeschaltet)")
         
@@ -233,7 +249,51 @@ with st.sidebar:
     st.caption("⚡ Cloud-DB Status: " + ("🟢 Aktiv" if supabase else "🔴 Offline"))
     st.caption("🤖 KI Status: " + ("🟢 Aktiv" if not model_error else "🔴 Offline"))
 
-tab_home, tab_add, tab_detail = st.tabs(["📋 Fundstücke Übersicht", "➕ Neues Fundstück eintragen", "🔎 Detailansicht"])
+# --- DIALOG-FENSTER FÜR DIREKTE DETAILANSICHT ---
+@st.dialog("🔎 Details zum Fundstück")
+def show_detail_dialog(item_data):
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if pd.notna(item_data["bild_base64"]) and str(item_data["bild_base64"]).startswith("data:image"):
+            st.image(item_data["bild_base64"], use_container_width=True)
+        else:
+            st.info("Kein Foto vorhanden.")
+            
+    with col2:
+        st.subheader(item_data["titel"])
+        status_class = "badge-offen" if item_data["status"] == "Offen" else "badge-abgeholt"
+        st.markdown(f'<span class="{status_class}">{item_data["status"]}</span>', unsafe_allow_html=True)
+        st.write("")
+        
+        st.write(f"**🏷️ Kategorie:** {item_data['kategorie']}")
+        st.write(f"**📍 Fundort:** {item_data['fundort']} (Raum: {item_data['raum']})")
+        st.write(f"**📅 Gefunden am:** {item_data['datum']}")
+        st.write(f"**👤 Kontakt:** {item_data['kontakt']}")
+    
+    st.divider()
+    
+    # Action Buttons direkt im Dialog
+    if item_data["status"] == "Offen":
+        if st.button("🙋‍♂️ Das gehört mir! (Als abgeholt markieren)", use_container_width=True, type="primary"):
+            if supabase:
+                supabase.table("fundstuecke").update({"status": "Abgeholt"}).eq("id", int(item_data["id"])).execute()
+            else:
+                df_items.loc[df_items["id"] == item_data["id"], "status"] = "Abgeholt"
+                df_items.to_csv("fundbuero_db.csv", index=False)
+            st.success("Gegenstand wurde als 'Abgeholt' markiert!")
+            st.rerun()
+
+    if is_admin:
+        if st.button("🗑️ Eintrag löschen (Owner Only)", use_container_width=True):
+            if supabase:
+                supabase.table("fundstuecke").delete().eq("id", int(item_data["id"])).execute()
+            else:
+                df_items_new = df_items[df_items["id"] != item_data["id"]]
+                df_items_new.to_csv("fundbuero_db.csv", index=False)
+            st.success("Eintrag gelöscht!")
+            st.rerun()
+
+tab_home, tab_add = st.tabs(["📋 Fundstücke Übersicht", "➕ Neues Fundstück eintragen"])
 
 # --- TAB 1: ÜBERSICHT ---
 with tab_home:
@@ -262,30 +322,28 @@ with tab_home:
             filtered_df = filtered_df[filtered_df["status"] == filter_s]
 
     if filtered_df.empty:
-        st.info("Keine passenden Gegenstände gefunden.")
+        st.info("Keine passenden Gegenstände vorhanden.")
     else:
         cols = st.columns(3)
         for idx, row in filtered_df.reset_index(drop=True).iterrows():
             with cols[idx % 3]:
-                # Custom HTML Card für garantiertes Styling
-                img_src = row["bild_base64"] if (pd.notna(row["bild_base64"]) and str(row["bild_base64"]).startswith("data:image")) else "https://via.placeholder.com/300x200?text=Kein+Bild"
-                badge_class = "badge-offen" if row["status"] == "Offen" else "badge-abgeholt"
-                
-                card_html = f"""
-                <div class="card-container">
-                    <img src="{img_src}" class="card-img" />
-                    <span class="{badge_class}">{row['status']}</span>
-                    <h3 style="margin-top: 10px; margin-bottom: 5px;">{row['titel']}</h3>
-                    <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">🏷️ {row['kategorie']}</p>
-                    <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">📍 {row['fundort']} (Raum: {row['raum']})</p>
-                    <p style="color: #64748b; font-size: 0.8rem;">📅 {row['datum']}</p>
-                </div>
-                """
-                st.markdown(card_html, unsafe_allow_html=True)
-                
-                if st.button("🔎 Details öffnen", key=f"btn_{row['id']}", use_container_width=True):
-                    st.session_state.selected_item_id = int(row["id"])
-                    st.rerun()
+                with st.container(border=True):
+                    if pd.notna(row["bild_base64"]) and str(row["bild_base64"]).startswith("data:image"):
+                        st.image(row["bild_base64"], use_container_width=True)
+                    
+                    st.subheader(row["titel"])
+                    
+                    badge_class = "badge-offen" if row["status"] == "Offen" else "badge-abgeholt"
+                    st.markdown(f'<span class="{badge_class}">{row["status"]}</span>', unsafe_allow_html=True)
+                    st.write("")
+                    
+                    st.write(f"**🏷️ Kategorie:** {row['kategorie']}")
+                    st.write(f"**📍 Ort:** {row['fundort']} *(Raum: {row['raum']})*")
+                    st.write(f"**📅 Datum:** {row['datum']}")
+                    
+                    # DIREKTES ÖFFNEN PER POPUP/DIALOG
+                    if st.button("🔎 Details öffnen", key=f"btn_{row['id']}", use_container_width=True):
+                        show_detail_dialog(row)
 
 # --- TAB 2: GEGENSTAND EINTRAGEN ---
 with tab_add:
@@ -344,68 +402,6 @@ with tab_add:
                     df_items = pd.concat([df_items, pd.DataFrame([new_row])], ignore_index=True)
                     df_items.to_csv("fundbuero_db.csv", index=False)
                 
-                # Formular zurücksetzen & Feedback anzeigen
                 st.session_state.upload_key += 1
                 st.session_state.success_msg = f"🎉 Erfolgreich gespeichert! '{titel}' ist jetzt online."
                 st.rerun()
-
-# --- TAB 3: DETAILS & STATUS ---
-with tab_detail:
-    st.subheader("Gegenstand-Details")
-    
-    if df_items.empty:
-        st.info("Keine Daten vorhanden.")
-    else:
-        all_ids = df_items["id"].tolist()
-        def_idx = 0
-        if st.session_state.selected_item_id in all_ids:
-            def_idx = all_ids.index(st.session_state.selected_item_id)
-            
-        selected_id = st.selectbox(
-            "Fundstück wählen", 
-            options=all_ids,
-            index=def_idx,
-            format_func=lambda x: f"ID {x}: {df_items.loc[df_items['id'] == x, 'titel'].values[0]}"
-        )
-        
-        item = df_items[df_items["id"] == selected_id].iloc[0]
-        
-        col_i1, col_i2 = st.columns([1, 1])
-        with col_i1:
-            if pd.notna(item["bild_base64"]) and str(item["bild_base64"]).startswith("data:image"):
-                st.image(item["bild_base64"], use_container_width=True)
-            else:
-                st.info("Kein Foto verfügbar")
-                
-        with col_i2:
-            st.title(item["titel"])
-            st.markdown(f"**Status:** `{item['status']}`")
-            st.markdown(f"**Kategorie:** {item['kategorie']}")
-            st.markdown(f"**Ort:** {item['fundort']} (Raum: {item['raum']})")
-            st.markdown(f"**Datum:** {item['datum']}")
-            st.markdown(f"**Abgabeort:** {item['kontakt']}")
-            
-            st.divider()
-            
-            # Button für JEDEN
-            if item["status"] == "Offen":
-                if st.button("🙋‍♂️ Das gehört mir! (Als abgeholt markieren)", use_container_width=True, type="primary"):
-                    if supabase:
-                        supabase.table("fundstuecke").update({"status": "Abgeholt"}).eq("id", selected_id).execute()
-                    else:
-                        df_items.loc[df_items["id"] == selected_id, "status"] = "Abgeholt"
-                        df_items.to_csv("fundbuero_db.csv", index=False)
-                    st.success("Status auf 'Abgeholt' geändert.")
-                    st.rerun()
-            
-            # Button NUR FÜR ADMIN
-            if is_admin:
-                if st.button("🗑️ Eintrag löschen (Owner Only)", use_container_width=True):
-                    if supabase:
-                        supabase.table("fundstuecke").delete().eq("id", selected_id).execute()
-                    else:
-                        df_items = df_items[df_items["id"] != selected_id]
-                        df_items.to_csv("fundbuero_db.csv", index=False)
-                    st.session_state.selected_item_id = None
-                    st.success("Gelöscht!")
-                    st.rerun()
