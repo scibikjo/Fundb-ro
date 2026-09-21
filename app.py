@@ -1,410 +1,514 @@
-import os
-import io
-import datetime
-import base64
-import pandas as pd
-import numpy as np
-from PIL import Image
 import streamlit as st
-import tensorflow as tf
-from supabase import create_client, Client
+import streamlit.components.v1 as components
 
-# ---------------------------------------------------------
-# 1. PAGE CONFIG & DESIGN SYSTEM
-# ---------------------------------------------------------
+# 1. Streamlit-Konfiguration für volle Breite
 st.set_page_config(
-    page_title="FundSpot – Schul-Fundbüro", 
-    page_icon="🌱", 
+    page_title="FundSpot – Schul-Fundbüro",
+    page_icon="🌱",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# Modernes Styling
-st.markdown("""
-<style>
-    .stApp {
-        background-color: #f8faf9 !important;
-        color: #1e293b !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
+# 2. Das vollständige HTML/CSS/JS-Design
+html_code = """
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FundSpot – Schul-Fundbüro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1b5e20;
+            --primary-light: #2e7d32;
+            --primary-bg: #e8f5e9;
+            --bg-main: #f4f7f5;
+            --card-bg: #ffffff;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --shadow-sm: 0 4px 12px rgba(0,0,0,0.03);
+            --shadow-hover: 0 12px 28px rgba(46, 125, 50, 0.12);
+        }
 
-    /* Header & Brand Logo */
-    .brand-header {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        background: #ffffff;
-        padding: 16px 28px;
-        border-radius: 20px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.04);
-        margin-bottom: 24px;
-        border: 1px solid #e2e8f0;
-    }
-    .brand-logo {
-        background: #2e7d32;
-        color: white;
-        font-weight: 900;
-        font-size: 1.4rem;
-        padding: 8px 14px;
-        border-radius: 14px;
-    }
-    .brand-title {
-        font-size: 1.5rem;
-        font-weight: 800;
-        color: #0f291e;
-        margin: 0;
-    }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
 
-    /* Hero Banner */
-    .hero-card {
-        background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);
-        border-radius: 24px;
-        padding: 32px;
-        color: #ffffff !important;
-        box-shadow: 0 10px 25px rgba(46, 125, 50, 0.2);
-        margin-bottom: 28px;
-    }
-    .hero-card h1 {
-        color: #ffffff !important;
-        font-size: 2.2rem !important;
-        margin: 0 0 8px 0 !important;
-    }
-    .hero-card p {
-        color: #e8f5e9 !important;
-        font-size: 1.05rem;
-        margin: 0;
-    }
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            padding: 24px;
+            min-height: 100vh;
+        }
 
-    /* Cards */
-    div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        background-color: #ffffff !important;
-        border-radius: 20px !important;
-        border: 1px solid #e2e8f0 !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03) !important;
-        transition: all 0.2s ease !important;
-        padding: 16px !important;
-    }
-    div[data-testid="stVerticalBlock"] > div[style*="border"]:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(46, 125, 50, 0.12) !important;
-        border-color: #a5d6a7 !important;
-    }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
 
-    /* Badges */
-    .badge-offen {
-        background-color: #e8f5e9;
-        color: #1b5e20;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 700;
-        display: inline-block;
-    }
-    .badge-abgeholt {
-        background-color: #ffebee;
-        color: #c62828;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 700;
-        display: inline-block;
-    }
-    .uploader-chip {
-        background-color: #f1f5f9;
-        color: #475569;
-        padding: 4px 10px;
-        border-radius: 10px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        display: inline-block;
-    }
-</style>
-""", unsafe_allow_html=True)
+        /* Header / Brand Bar */
+        .app-header {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            padding: 16px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
 
-# ---------------------------------------------------------
-# 2. SUPABASE / DATENBANK & KI MODELL
-# ---------------------------------------------------------
-@st.cache_resource
-def init_supabase():
-    url = st.secrets.get("SUPABASE_URL")
-    key = st.secrets.get("SUPABASE_KEY")
-    if url and key:
-        return create_client(url, key)
-    return None
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 800;
+            font-size: 1.4rem;
+            color: var(--primary);
+        }
 
-supabase: Client = init_supabase()
+        .brand-icon {
+            background: var(--primary);
+            color: white;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
 
-def load_data():
-    if supabase:
-        response = supabase.table("fundstuecke").select("*").execute()
-        return pd.DataFrame(response.data)
-    else:
-        DB_FILE = "fundbuero_db.csv"
-        if os.path.exists(DB_FILE):
-            df = pd.read_csv(DB_FILE)
-            if "uploader" not in df.columns:
-                df["uploader"] = "Anonym"
-            return df
-        return pd.DataFrame(columns=[
-            "id", "titel", "kategorie", "fundort", "raum", 
-            "datum", "status", "kontakt", "uploader", "bild_base64"
-        ])
+        .nav-links {
+            display: flex;
+            gap: 8px;
+        }
 
-def load_labels():
-    labels_path = "labels.txt"
-    if os.path.exists(labels_path):
-        with open(labels_path, "r", encoding="utf-8") as f:
-            labels = [line.strip().split(" ", 1)[-1] for line in f.readlines() if line.strip()]
-            if labels:
-                return labels
-    return ["Kleidung", "Elektronik", "Bücher & Hefte", "Sonstiges"]
+        .nav-btn {
+            background: transparent;
+            border: none;
+            padding: 10px 18px;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
-CATEGORIES = load_labels()
+        .nav-btn:hover, .nav-btn.active {
+            background: var(--primary-bg);
+            color: var(--primary);
+        }
 
-class FixedDepthwiseConv2D(tf.keras.layers.DepthwiseConv2D):
-    def __init__(self, *args, **kwargs):
-        kwargs.pop('groups', None)
-        super().__init__(*args, **kwargs)
+        /* Hero Banner */
+        .hero-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            border-radius: var(--radius-lg);
+            padding: 36px;
+            color: white;
+            box-shadow: 0 12px 30px rgba(27, 94, 32, 0.2);
+            margin-bottom: 28px;
+        }
 
-@st.cache_resource
-def load_keras_model():
-    model_path = "keras_model.h5"
-    if os.path.exists(model_path):
-        try:
-            custom_objects = {'DepthwiseConv2D': FixedDepthwiseConv2D}
-            model = tf.keras.models.load_model(model_path, custom_objects=custom_objects, compile=False)
-            return model, None
-        except Exception as e:
-            return None, f"Fehler: {e}"
-    return None, "Kein Modell vorhanden"
+        .hero-card h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
 
-def predict_category(image_bytes, model):
-    if model is None:
-        return None, 0.0
-    img = Image.open(io.BytesIO(image_bytes)).convert('RGB').resize((224, 224))
-    img_array = (np.expand_dims(np.array(img, dtype=np.float32), axis=0) / 127.5) - 1.0
-    try:
-        predictions = model(img_array, training=False).numpy()
-    except Exception:
-        predictions = model.predict(img_array)
-    idx = np.argmax(predictions[0])
-    return (CATEGORIES[idx] if idx < len(CATEGORIES) else CATEGORIES[0]), float(predictions[0][idx])
+        .hero-card p {
+            color: #e8f5e9;
+            font-size: 1.05rem;
+        }
 
-# ---------------------------------------------------------
-# 3. SESSION STATE & ROUTING
-# ---------------------------------------------------------
-if "current_screen" not in st.session_state:
-    st.session_state.current_screen = "home"
-if "selected_item_id" not in st.session_state:
-    st.session_state.selected_item_id = None
-if "upload_key" not in st.session_state:
-    st.session_state.upload_key = 0
+        /* Filters */
+        .filter-bar {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
 
-df_items = load_data()
-model, _ = load_keras_model()
+        .input-group {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: var(--shadow-sm);
+        }
 
-# --- SIDEBAR (NAVIGATION & ACCOUNT) ---
-with st.sidebar:
-    st.markdown("### 🌱 FundSpot Menü")
-    
-    if st.button("🏠 Hauptseite (Entdecken)", use_container_width=True):
-        st.session_state.current_screen = "home"
-        st.rerun()
-        
-    if st.button("➕ Kleidungsstück hochladen", use_container_width=True, type="primary"):
-        st.session_state.current_screen = "upload"
-        st.rerun()
-        
-    if st.button("👤 Mein Konto & Fundstücke", use_container_width=True):
-        st.session_state.current_screen = "account"
-        st.rerun()
+        .input-group input, .input-group select {
+            border: none;
+            outline: none;
+            width: 100%;
+            font-size: 0.95rem;
+            background: transparent;
+        }
 
-    st.divider()
-    st.markdown("### ⚙️ Profil & Admin")
-    user_account_name = st.text_input("Dein Name / Klasse", value="Johann")
-    admin_pw_input = st.text_input("Admin-Passwort", type="password")
-    ADMIN_PW = st.secrets.get("ADMIN_PASSWORD", "admin123")
-    is_admin = (admin_pw_input == ADMIN_PW)
-    if is_admin:
-        st.success("🔓 Admin-Rechte aktiv")
+        /* Grid & Cards */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 24px;
+        }
 
-# --- HEADER BAR ---
-st.markdown("""
-<div class="brand-header">
-    <div class="brand-logo">🌱</div>
-    <div class="brand-title">FundSpot – Schul-Fundbüro</div>
+        .item-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            padding: 18px;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.25s ease;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .item-card:hover {
+            transform: translateY(-6px);
+            box-shadow: var(--shadow-hover);
+            border-color: #a5d6a7;
+        }
+
+        .item-img {
+            width: 100%;
+            height: 180px;
+            border-radius: var(--radius-md);
+            object-fit: cover;
+            background: #f1f5f9;
+        }
+
+        .badge-status {
+            background: var(--primary-bg);
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            display: inline-block;
+            width: fit-content;
+        }
+
+        .uploader-tag {
+            background: #f1f5f9;
+            color: #475569;
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-block;
+            width: fit-content;
+        }
+
+        .card-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+        }
+
+        .card-loc {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+        }
+
+        /* Screens */
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        /* Forms & Buttons */
+        .form-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            border: 1px solid var(--border);
+            max-width: 650px;
+            margin: 0 auto;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: var(--radius-md);
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-light);
+        }
+
+        .back-btn {
+            background: #e2e8f0;
+            border: none;
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Navigation Header -->
+    <header class="app-header">
+        <div class="brand-logo">
+            <div class="brand-icon"><i class="fa-solid fa-leaf"></i></div>
+            <span>FundSpot</span>
+        </div>
+        <nav class="nav-links">
+            <button class="nav-btn active" onclick="switchScreen('home')"><i class="fa-solid fa-compass"></i> Entdecken</button>
+            <button class="nav-btn" onclick="switchScreen('upload')"><i class="fa-solid fa-plus"></i> Hochladen</button>
+        </nav>
+    </header>
+
+    <!-- SCREEN 1: HOME -->
+    <main id="screen-home" class="screen active">
+        <div class="hero-card">
+            <h1>Gefundenes wiederentdecken</h1>
+            <p>Finde deine verlorenen Wertsachen oder hilf anderen, ihre Sachen wiederzubekommen.</p>
+        </div>
+
+        <div class="filter-bar">
+            <div class="input-group">
+                <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
+                <input type="text" id="searchInput" placeholder="Suchen nach Jacke, Tasche..." oninput="filterItems()">
+            </div>
+            <div class="input-group">
+                <select id="catSelect" onchange="filterItems()">
+                    <option value="Alle">Alle Kategorien</option>
+                    <option value="Kleidung">Kleidung</option>
+                    <option value="Elektronik">Elektronik</option>
+                    <option value="Bücher">Bücher & Hefte</option>
+                    <option value="Sonstiges">Sonstiges</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <select id="statusSelect" onchange="filterItems()">
+                    <option value="Alle">Alle Status</option>
+                    <option value="Offen">Offen</option>
+                    <option value="Abgeholt">Abgeholt</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid" id="itemsGrid"></div>
+    </main>
+
+    <!-- SCREEN 2: DETAILANSICHT -->
+    <main id="screen-detail" class="screen">
+        <button class="back-btn" onclick="switchScreen('home')"><i class="fa-solid fa-arrow-left"></i> Zurück</button>
+        <div class="form-card" id="detailContent"></div>
+    </main>
+
+    <!-- SCREEN 3: HOCHLADEN -->
+    <main id="screen-upload" class="screen">
+        <div class="form-card">
+            <h2 style="margin-bottom: 20px;">➕ Fundstück eintragen</h2>
+            <form onsubmit="handleUpload(event)">
+                <div class="form-group">
+                    <label>Bezeichnung / Titel *</label>
+                    <input type="text" class="form-control" id="titleInput" placeholder="z. B. Blaue Nike Jacke" required>
+                </div>
+                <div class="form-group">
+                    <label>Dein Name / Klasse *</label>
+                    <input type="text" class="form-control" id="uploaderInput" placeholder="z. B. Johann (8b)" required>
+                </div>
+                <div class="form-group">
+                    <label>Kategorie</label>
+                    <select class="form-control" id="categoryInput">
+                        <option value="Kleidung">Kleidung</option>
+                        <option value="Elektronik">Elektronik</option>
+                        <option value="Bücher & Hefte">Bücher & Hefte</option>
+                        <option value="Sonstiges">Sonstiges</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Fundort *</label>
+                    <input type="text" class="form-control" id="locInput" placeholder="z. B. Turnhalle" required>
+                </div>
+                <div class="form-group">
+                    <label>Abgabeort / Kontakt</label>
+                    <input type="text" class="form-control" id="contactInput" placeholder="z. B. Hausmeister">
+                </div>
+                <button type="submit" class="btn-primary">💾 Fundstück veröffentlichen</button>
+            </form>
+        </div>
+    </main>
 </div>
-""", unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 4. SCREEN 1: HAUPTSEITE (HOME)
-# ---------------------------------------------------------
-if st.session_state.current_screen == "home":
-    st.markdown("""
-    <div class="hero-card">
-        <h1>Gefundenes wiederentdecken.</h1>
-        <p>Suche nach verlorenen Gegenständen an deiner Schule oder trage gefundene Sachen ein.</p>
-    </div>
-    """, unsafe_allow_html=True)
+<script>
+    // Beispieldaten
+    let items = [
+        {
+            id: 1,
+            titel: "Grüner Nike Rucksack",
+            kategorie: "Sonstiges",
+            fundort: "Mensa",
+            uploader: "Johann",
+            status: "Offen",
+            datum: "2026-09-20",
+            img: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&auto=format&fit=crop&q=60"
+        },
+        {
+            id: 2,
+            titel: "Blaue Strickjacke",
+            kategorie: "Kleidung",
+            fundort: "Turnhalle",
+            uploader: "Maria",
+            status: "Offen",
+            datum: "2026-09-21",
+            img: "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=500&auto=format&fit=crop&q=60"
+        }
+    ];
 
-    c1, c2, c3 = st.columns([2, 1, 1])
-    with c1:
-        search_q = st.text_input("🔍 Suchbegriff", placeholder="z. B. Jacke, Sportbeutel...")
-    with c2:
-        filter_c = st.selectbox("Kategorie", ["Alle"] + CATEGORIES)
-    with c3:
-        filter_s = st.selectbox("Status", ["Alle", "Offen", "Abgeholt"])
+    function renderItems(filtered) {
+        const grid = document.getElementById("itemsGrid");
+        grid.innerHTML = "";
 
-    filtered_df = df_items.copy()
-    if not filtered_df.empty:
-        if search_q:
-            filtered_df = filtered_df[
-                filtered_df["titel"].str.contains(search_q, case=False, na=False) |
-                filtered_df["fundort"].str.contains(search_q, case=False, na=False)
-            ]
-        if filter_c != "Alle":
-            filtered_df = filtered_df[filtered_df["kategorie"] == filter_c]
-        if filter_s != "Alle":
-            filtered_df = filtered_df[filtered_df["status"] == filter_s]
+        if(filtered.length === 0) {
+            grid.innerHTML = "<p style='color: var(--text-muted); grid-column: 1/-1;'>Keine Fundstücke gefunden.</p>";
+            return;
+        }
 
-    if filtered_df.empty:
-        st.info("Keine Fundstücke gefunden.")
-    else:
-        cols = st.columns(3)
-        for idx, row in filtered_df.reset_index(drop=True).iterrows():
-            with cols[idx % 3]:
-                with st.container(border=True):
-                    if pd.notna(row["bild_base64"]) and str(row["bild_base64"]).startswith("data:image"):
-                        st.image(row["bild_base64"], use_container_width=True)
-                    
-                    st.subheader(row["titel"])
-                    badge_class = "badge-offen" if row["status"] == "Offen" else "badge-abgeholt"
-                    st.markdown(f'<span class="{badge_class}">{row["status"]}</span>', unsafe_allow_html=True)
-                    st.markdown(f'<span class="uploader-chip">👤 {row.get("uploader", "Anonym")}</span>', unsafe_allow_html=True)
-                    st.caption(f"📍 {row['fundort']} (Raum {row['raum']})")
-                    
-                    if st.button("🔎 Kleidungsstück anschauen", key=f"btn_{row['id']}", use_container_width=True):
-                        st.session_state.selected_item_id = row['id']
-                        st.session_state.current_screen = "detail"
-                        st.rerun()
+        filtered.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "item-card";
+            card.onclick = () => openDetail(item.id);
+            card.innerHTML = `
+                <img src="${item.img}" class="item-img" alt="${item.titel}">
+                <div class="badge-status">${item.status}</div>
+                <div class="card-title">${item.titel}</div>
+                <div class="uploader-tag">👤 von ${item.uploader}</div>
+                <div class="card-loc">📍 ${item.fundort}</div>
+            `;
+            grid.appendChild(card);
+        });
+    }
 
-# ---------------------------------------------------------
-# 5. SCREEN 2: DETAILANSICHT
-# ---------------------------------------------------------
-elif st.session_state.current_screen == "detail":
-    if st.button("⬅️ Zurück zur Hauptseite"):
-        st.session_state.current_screen = "home"
-        st.rerun()
+    function filterItems() {
+        const q = document.getElementById("searchInput").value.toLowerCase();
+        const cat = document.getElementById("catSelect").value;
+        const status = document.getElementById("statusSelect").value;
+
+        const res = items.filter(i => {
+            const matchQ = i.titel.toLowerCase().includes(q) || i.fundort.toLowerCase().includes(q);
+            const matchCat = (cat === "Alle" || i.kategorie === cat);
+            const matchStatus = (status === "Alle" || i.status === status);
+            return matchQ && matchCat && matchStatus;
+        });
+
+        renderItems(res);
+    }
+
+    function openDetail(id) {
+        const item = items.find(i => i.id === id);
+        if(!item) return;
+
+        const detailBox = document.getElementById("detailContent");
+        detailBox.innerHTML = `
+            <img src="${item.img}" style="width: 100%; height: 260px; object-fit: cover; border-radius: var(--radius-md); margin-bottom: 20px;">
+            <h2>${item.titel}</h2>
+            <p style="margin: 10px 0;"><strong>Status:</strong> <span class="badge-status">${item.status}</span></p>
+            <p style="margin: 6px 0;"><strong>Hochgeladen von:</strong> ${item.uploader}</p>
+            <p style="margin: 6px 0;"><strong>Kategorie:</strong> ${item.kategorie}</p>
+            <p style="margin: 6px 0;"><strong>Fundort:</strong> ${item.fundort}</p>
+            <p style="margin: 6px 0;"><strong>Datum:</strong> ${item.datum}</p>
+            <button class="btn-primary" style="margin-top: 20px;" onclick="markCollected(${item.id})">🙋‍♂️ Das gehört mir!</button>
+        `;
+        switchScreen('detail');
+    }
+
+    function markCollected(id) {
+        const item = items.find(i => i.id === id);
+        if(item) {
+            item.status = "Abgeholt";
+            alert("Erfolgreich als abgeholt markiert!");
+            filterItems();
+            switchScreen('home');
+        }
+    }
+
+    function handleUpload(e) {
+        e.preventDefault();
+        const newObj = {
+            id: Date.now(),
+            titel: document.getElementById("titleInput").value,
+            uploader: document.getElementById("uploaderInput").value,
+            kategorie: document.getElementById("categoryInput").value,
+            fundort: document.getElementById("locInput").value,
+            status: "Offen",
+            datum: new Date().toISOString().split('T')[0],
+            img: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500&auto=format&fit=crop&q=60"
+        };
+
+        items.unshift(newObj);
+        filterItems();
+        e.target.reset();
+        switchScreen('home');
+    }
+
+    function switchScreen(name) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         
-    item_rows = df_items[df_items["id"] == st.session_state.selected_item_id]
-    if item_rows.empty:
-        st.error("Gegenstand nicht gefunden.")
-    else:
-        item = item_rows.iloc[0]
-        st.markdown(f"## 🔎 {item['titel']}")
-        
-        col_left, col_right = st.columns([1, 1])
-        with col_left:
-            if pd.notna(item["bild_base64"]) and str(item["bild_base64"]).startswith("data:image"):
-                st.image(item["bild_base64"], use_container_width=True)
-            else:
-                st.info("Kein Foto vorhanden.")
-                
-        with col_right:
-            status_class = "badge-offen" if item["status"] == "Offen" else "badge-abgeholt"
-            st.markdown(f'<span class="{status_class}" style="font-size: 1rem;">Status: {item["status"]}</span>', unsafe_allow_html=True)
-            st.write("")
-            st.markdown(f"**👤 Hochgeladen von:** {item.get('uploader', 'Anonym')}")
-            st.markdown(f"**🏷️ Kategorie:** {item['kategorie']}")
-            st.markdown(f"**📍 Fundort:** {item['fundort']} (Raum: {item['raum']})")
-            st.markdown(f"**📅 Funddatum:** {item['datum']}")
-            st.markdown(f"**📦 Abgabeort / Kontakt:** {item['kontakt']}")
-            
-            st.divider()
-            if item["status"] == "Offen":
-                if st.button("🙋‍♂️ Das gehört mir! (Als abgeholt markieren)", use_container_width=True, type="primary"):
-                    if supabase:
-                        supabase.table("fundstuecke").update({"status": "Abgeholt"}).eq("id", int(item["id"])).execute()
-                    else:
-                        df_items.loc[df_items["id"] == item["id"], "status"] = "Abgeholt"
-                        df_items.to_csv("fundbuero_db.csv", index=False)
-                    st.success("Erfolgreich als abgeholt markiert!")
-                    st.rerun()
+        document.getElementById('screen-' + name).classList.add('active');
+    }
 
-            if is_admin:
-                if st.button("🗑️ Eintrag löschen (Admin)", use_container_width=True):
-                    if supabase:
-                        supabase.table("fundstuecke").delete().eq("id", int(item["id"])).execute()
-                    else:
-                        df_items_new = df_items[df_items["id"] != item["id"]]
-                        df_items_new.to_csv("fundbuero_db.csv", index=False)
-                    st.session_state.current_screen = "home"
-                    st.rerun()
+    // Erstes Rendering
+    renderItems(items);
+</script>
 
-# ---------------------------------------------------------
-# 6. SCREEN 3: HOCHLADEN
-# ---------------------------------------------------------
-elif st.session_state.current_screen == "upload":
-    st.subheader("➕ Neues Fundstück eintragen")
-    
-    uploaded_file = st.file_uploader(
-        "Foto vom Kleidungsstück hochladen", 
-        type=["jpg", "jpeg", "png"], 
-        key=f"upl_{st.session_state.upload_key}"
-    )
-    
-    auto_cat = CATEGORIES[0]
-    img_data_url = ""
-    
-    if uploaded_file is not None:
-        file_bytes = uploaded_file.getvalue()
-        pred_cat, conf = predict_category(file_bytes, model)
-        if pred_cat:
-            auto_cat = pred_cat
-            st.info(f"🤖 KI-Vorschlag: **{auto_cat}** ({conf*100:.1f}% Sicher)")
-        st.image(file_bytes, caption="Vorschau", width=200)
-        img_data_url = f"data:image/jpeg;base64,{base64.b64encode(file_bytes).decode('utf-8')}"
+</body>
+</html>
+"""
 
-    with st.form("add_form", clear_on_submit=True):
-        titel = st.text_input("Bezeichnung *", placeholder="z. B. Rote Adidas Jacke")
-        col1, col2 = st.columns(2)
-        with col1:
-            uploader_input = st.text_input("Dein Name / Klasse *", value=user_account_name)
-            kategorie = st.selectbox("Kategorie", CATEGORIES, index=(CATEGORIES.index(auto_cat) if auto_cat in CATEGORIES else 0))
-        with col2:
-            fundort = st.text_input("Fundort *", placeholder="z. B. Pausenhof")
-            raum = st.text_input("Raum", placeholder="z. B. B12")
-        kontakt = st.text_input("Abgabeort / Kontakt", placeholder="z. B. Sekretariat")
-        
-        if st.form_submit_button("💾 Veröffentlichen", type="primary", use_container_width=True):
-            if not titel or not fundort or not uploader_input:
-                st.error("Bitte Titel, Fundort und deinen Namen eingeben!")
-            else:
-                new_row = {
-                    "titel": titel, "kategorie": kategorie, "fundort": fundort,
-                    "raum": raum, "datum": datetime.date.today().strftime("%Y-%m-%d"),
-                    "status": "Offen", "kontakt": kontakt, "uploader": uploader_input,
-                    "bild_base64": img_data_url
-                }
-                if supabase:
-                    supabase.table("fundstuecke").insert(new_row).execute()
-                else:
-                    new_row["id"] = len(df_items) + 1
-                    pd.concat([df_items, pd.DataFrame([new_row])], ignore_index=True).to_csv("fundbuero_db.csv", index=False)
-                
-                st.session_state.upload_key += 1
-                st.session_state.current_screen = "home"
-                st.rerun()
-
-# ---------------------------------------------------------
-# 7. SCREEN 4: KONTO / MEINE FUNDSTÜCKE
-# ---------------------------------------------------------
-elif st.session_state.current_screen == "account":
-    st.subheader(f"👤 Konto von {user_account_name}")
-    my_items = df_items[df_items["uploader"] == user_account_name]
-    
-    if my_items.empty:
-        st.info("Du hast bisher noch keine Fundstücke hochgeladen.")
-    else:
-        st.write(f"Du hast bisher **{len(my_items)}** Gegenstände hochgeladen:")
-        st.dataframe(my_items[["titel", "kategorie", "fundort", "datum", "status"]], use_container_width=True)
+# 3. HTML in Streamlit einbetten
+components.html(html_code, height=900, scrolling=True)
