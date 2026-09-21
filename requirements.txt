@@ -1,7 +1,5 @@
 streamlit
-tensorflow==2.15.0
-tf-keras
-pillow
 pandas
-numpy
+pillow
 supabase
+google-generativeai
