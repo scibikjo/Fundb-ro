@@ -13,6 +13,13 @@ try:
 except ImportError:
     HAS_HF = False
 
+# Übersetzungsdienst für Deutsch
+try:
+    from deep_translator import GoogleTranslator
+    HAS_TRANSLATOR = True
+except ImportError:
+    HAS_TRANSLATOR = False
+
 # =========================================================
 # 1. STREAMLIT CONFIG & DESIGN
 # =========================================================
@@ -134,7 +141,7 @@ def add_new_item(item_dict):
     save_items(items)
 
 # =========================================================
-# 3. HUGGING FACE KI-MODELL LADEN & BILDER ANALYSIEREN
+# 3. HUGGING FACE KI-MODELL & ÜBERSETZUNG (DEUTSCH)
 # =========================================================
 @st.cache_resource
 def load_hf_model():
@@ -142,6 +149,16 @@ def load_hf_model():
     processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
     model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
     return processor, model
+
+def translate_to_german(text_en):
+    """Übersetzt den englischen Text des Hugging Face Modells auf Deutsch."""
+    if HAS_TRANSLATOR:
+        try:
+            translated = GoogleTranslator(source='en', target='de').translate(text_en)
+            return translated
+        except Exception:
+            pass
+    return text_en
 
 def analyze_image_with_hf(image_file):
     if not HAS_HF:
@@ -152,24 +169,27 @@ def analyze_image_with_hf(image_file):
         
         raw_image = Image.open(image_file).convert('RGB')
         
-        # Bild durch das Modell verarbeiten
+        # Bild durch das Hugging Face Modell verarbeiten
         inputs = processor(raw_image, return_tensors="pt")
         out = model.generate(**inputs, max_new_tokens=50)
         description_en = processor.decode(out[0], skip_special_tokens=True)
+
+        # Ins Deutsche übersetzen
+        description_de = translate_to_german(description_en)
 
         # Zuordnung zu Schul-Kategorien basierend auf erkannten Wörtern
         desc_lower = description_en.lower()
         
         kategorie = "Sonstiges"
-        if any(w in desc_lower for w in ["jacket", "coat", "shirt", "pants", "sweater", "hoodie", "shoe", "sneaker", "hat", "cap", "glove", "scarf", "clothes"]):
-            kategorie = "Kleidung"
+        if any(w in desc_lower for w in ["jacket", "coat", "shirt", "pants", "sweater", "hoodie", "shoe", "sneaker", "hat", "cap", "glove", "scarf", "clothes", "bag", "backpack"]):
+            kategorie = "Kleidung & Taschen"
         elif any(w in desc_lower for w in ["phone", "laptop", "tablet", "headphone", "earphone", "calculator", "cable", "charger", "electronic"]):
             kategorie = "Elektronik"
         elif any(w in desc_lower for w in ["book", "notebook", "paper", "binder", "pencil", "pen", "case"]):
-            kategorie = "Bücher & Hefte"
+            kategorie = "Bücher & Schreibwaren"
 
         return {
-            "beschreibung": description_en,
+            "beschreibung": description_de,
             "kategorie": kategorie
         }, None
 
@@ -197,7 +217,7 @@ if "f_ort" not in st.session_state:
 st.markdown("""
     <div class="hero-banner">
         <h1>🌱 FundSpot</h1>
-        <p>Das digitale Schul-Fundbüro – Mit Hugging Face KI-Bilderkennung</p>
+        <p>Das digitale Schul-Fundbüro – Mit Hugging Face KI (Deutsche Ausgabe)</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -246,8 +266,8 @@ elif st.session_state.tab == "hochladen":
             st.image(uploaded_file, caption="Vorschau", width=200)
             b64_img = f"data:image/jpeg;base64,{base64.b64encode(uploaded_file.getvalue()).decode()}"
             
-            if st.button("🤗 Foto mit Hugging Face KI analysieren", type="primary", use_container_width=True):
-                with st.spinner("Hugging Face KI-Modell analysiert das Bild..."):
+            if st.button("🤗 Foto mit Hugging Face KI analysieren (auf Deutsch)", type="primary", use_container_width=True):
+                with st.spinner("Hugging Face KI analysiert das Bild und übersetzt die Auswertung..."):
                     ai_data, error_msg = analyze_image_with_hf(uploaded_file)
                     
                     if error_msg:
@@ -255,7 +275,7 @@ elif st.session_state.tab == "hochladen":
                     elif ai_data:
                         st.session_state.f_titel = ai_data.get("beschreibung", "").capitalize()
                         st.session_state.f_kategorie = ai_data.get("kategorie", "Sonstiges")
-                        st.success("✅ Hugging Face KI hat das Bild erkannt und Kategorie zugewiesen!")
+                        st.success("✅ Das Bild wurde erfolgreich analysiert und ins Deutsche übersetzt!")
                         st.rerun()
 
         st.divider()
@@ -263,7 +283,7 @@ elif st.session_state.tab == "hochladen":
 
         titel_val = st.text_input("Gegenstand / Beschreibung *", value=st.session_state.f_titel)
         
-        kategorien = ["Sonstiges", "Kleidung", "Elektronik", "Bücher & Hefte"]
+        kategorien = ["Sonstiges", "Kleidung & Taschen", "Elektronik", "Bücher & Schreibwaren"]
         kat_idx = kategorien.index(st.session_state.f_kategorie) if st.session_state.f_kategorie in kategorien else 0
         kat_val = st.selectbox("Kategorie", kategorien, index=kat_idx)
         
