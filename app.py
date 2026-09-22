@@ -21,7 +21,7 @@ except ImportError:
     HAS_TRANSLATOR = False
 
 # =========================================================
-# 1. STREAMLIT CONFIG & EXTENDED CSS (HOVER EFFECTS)
+# 1. STREAMLIT CONFIG & EXTENDED CSS (HOVER & CARDS)
 # =========================================================
 st.set_page_config(
     page_title="FundSpot – Schul-Fundbüro",
@@ -78,12 +78,12 @@ st.markdown("""
             overflow: hidden;
             box-shadow: 0 4px 12px rgba(0,0,0,0.03);
             transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }
 
         .fund-card-container:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.12);
+            transform: translateY(-6px) scale(1.01);
+            box-shadow: 0 16px 28px -8px rgba(15, 23, 42, 0.12);
             border-color: #cbd5e1;
         }
 
@@ -112,6 +112,8 @@ st.markdown("""
         }
         .badge-kategorie { background-color: #e0f2fe; color: #0369a1; }
         .badge-ort { background-color: #fef3c7; color: #b45309; }
+        .badge-claimed { background-color: #fef2f2; color: #991b1b; }
+        .badge-open { background-color: #f0fdf4; color: #166534; }
 
         /* Custom Input & Form Styling */
         div[data-baseweb="input"] > div { border-radius: 14px !important; }
@@ -190,6 +192,24 @@ def delete_item(item_id):
     if supabase:
         try:
             supabase.table("fundstuecke").delete().eq("id", item_id).execute()
+        except Exception:
+            pass
+    save_items(items)
+
+def update_item_claim(item_id, claimer_info):
+    items = load_items()
+    for item in items:
+        if str(item["id"]) == str(item_id):
+            item["status"] = "Beansprucht"
+            item["beansprucht_von"] = claimer_info
+            break
+            
+    if supabase:
+        try:
+            supabase.table("fundstuecke").update({
+                "status": "Beansprucht",
+                "beansprucht_von": claimer_info
+            }).eq("id", item_id).execute()
         except Exception:
             pass
     save_items(items)
@@ -275,7 +295,6 @@ if "f_kategorie" not in st.session_state:
 if "f_ort" not in st.session_state:
     st.session_state.f_ort = ""
 
-# Passwort für den Owner/Admin Modus (Standard: admin123)
 OWNER_PASSWORD = st.secrets.get("OWNER_PASSWORD", "admin123")
 
 # =========================================================
@@ -288,7 +307,7 @@ st.markdown("""
         <div style="display: flex; align-items: center; justify-content: space-between;">
             <div>
                 <h1>🎒 FundSpot</h1>
-                <p>Das digitale Schul-Fundbüro mit Hugging Face KI-Bilderkennung</p>
+                <p>Das digitale Schul-Fundbüro mit KI-Bilderkennung</p>
             </div>
             <div style="font-size: 3.5rem; opacity: 0.9;">🔍</div>
         </div>
@@ -322,7 +341,7 @@ with nav_c2:
 
 st.write("")
 
-# TAB 1: ENTDECKEN (MIT HOVER-EFFEKTEN)
+# TAB 1: ENTDECKEN (MIT HOVER, DETAIL-VIEW & CLAIM-FUNKTION)
 if st.session_state.tab == "entdecken":
     items = load_items()
     cols = st.columns(3)
@@ -330,14 +349,17 @@ if st.session_state.tab == "entdecken":
     for idx, item in enumerate(items):
         with cols[idx % 3]:
             img_src = item.get("bild_base64") or "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop&q=80"
+            is_claimed = item.get("status") == "Beansprucht"
+            status_badge = '<span class="badge badge-claimed">⚠️ Beansprucht</span>' if is_claimed else '<span class="badge badge-open">✅ Offen</span>'
             
-            # HTML Container mit Hover-CSS-Klasse wrapped
+            # HTML Card Rendering mit Hover
             st.markdown(f"""
                 <div class="fund-card-container">
-                    <div style="height: 200px; overflow: hidden;">
+                    <div style="height: 200px; overflow: hidden; background: #e2e8f0;">
                         <img src="{img_src}" style="width: 100%; height: 100%; object-fit: cover;">
                     </div>
                     <div class="fund-card-details">
+                        {status_badge}
                         <span class="badge badge-kategorie">🏷️ {item.get('kategorie')}</span>
                         <span class="badge badge-ort">📍 {item.get('fundort')}</span>
                         <div class="fund-card-title">{item.get('titel', 'Unbenannt')}</div>
@@ -350,12 +372,40 @@ if st.session_state.tab == "entdecken":
                 </div>
             """, unsafe_allow_html=True)
             
-            # Löschen-Button NUR anzeigen, wenn der Nutzer Owner/Admin ist
-            if st.session_state.is_owner:
-                if st.button(f"🗑️ Löschen (#{item['id']})", key=f"del_{item['id']}", use_container_width=True):
-                    delete_item(item["id"])
-                    st.toast("Eintrag gelöscht!")
-                    st.rerun()
+            # Interaktions-Buttons
+            btn_col1, btn_col2 = st.columns(2)
+            
+            # Button 1: Details / Bild vergrößern & Eigentum beanspruchen
+            with btn_col1:
+                with st.popover("🔎 Details / Eigentum"):
+                    st.image(img_src, caption=item.get("titel"), use_container_width=True)
+                    st.markdown(f"### {item.get('titel')}")
+                    st.write(f"📍 **Fundort:** {item.get('fundort')} (Raum: {item.get('raum')})")
+                    st.write(f"🏢 **Abholen bei:** {item.get('kontakt')}")
+                    st.write(f"👤 **Eingetragen von:** {item.get('uploader')}")
+                    st.write(f"📅 **Datum:** {item.get('datum')}")
+                    
+                    if is_claimed:
+                        st.warning(f"Dieses Fundstück wurde bereits beansprucht von: **{item.get('beansprucht_von')}**")
+                    else:
+                        st.divider()
+                        st.markdown("#### 🙋 Das gehört mir!")
+                        claimer_name = st.text_input("Dein Name / Klasse zum Abholen:", key=f"claimer_{item['id']}")
+                        if st.button("Gegenstand als 'Meins' markieren", key=f"claim_btn_{item['id']}", type="primary"):
+                            if claimer_name.strip():
+                                update_item_claim(item["id"], claimer_name)
+                                st.success("Vielen Dank! Der Gegenstand wurde für dich reserviert.")
+                                st.rerun()
+                            else:
+                                st.error("Bitte gib deinen Namen ein.")
+
+            # Button 2: Löschen (Nur für den Owner sichtbar)
+            with btn_col2:
+                if st.session_state.is_owner:
+                    if st.button("🗑️ Löschen", key=f"del_{item['id']}", use_container_width=True):
+                        delete_item(item["id"])
+                        st.toast("Eintrag gelöscht!")
+                        st.rerun()
 
 # TAB 2: HOCHLADEN
 elif st.session_state.tab == "hochladen":
