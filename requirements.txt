@@ -6,3 +6,4 @@ torch
 transformers
 deep-translator
 streamlit>=1.25.0
+pandas>=2.0.0
