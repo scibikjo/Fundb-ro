@@ -5,3 +5,4 @@ supabase
 torch
 transformers
 deep-translator
+streamlit>=1.25.0
