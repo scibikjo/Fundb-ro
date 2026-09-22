@@ -21,7 +21,7 @@ except ImportError:
     HAS_TRANSLATOR = False
 
 # =========================================================
-# 1. STREAMLIT CONFIG & ERWEITERTES CSS / HTML-DESIGN
+# 1. STREAMLIT CONFIG & EXTENDED CSS (HOVER EFFECTS)
 # =========================================================
 st.set_page_config(
     page_title="FundSpot – Schul-Fundbüro",
@@ -34,7 +34,6 @@ st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-        /* Haupt-Hintergrund & Typografie */
         html, body, [class*="css"], .stApp {
             font-family: 'Plus Jakarta Sans', sans-serif !important;
             background-color: #f1f5f9 !important;
@@ -49,86 +48,76 @@ st.markdown("""
             max-width: 1200px !important;
         }
 
-        /* Hero Banner mit Verlauf & Glossy Effekten */
+        /* Hero Banner */
         .hero-banner {
             background: linear-gradient(135deg, #0f766e 0%, #0d9488 50%, #059669 100%);
             border-radius: 24px;
-            padding: 36px 40px;
+            padding: 32px 40px;
             color: #ffffff;
             box-shadow: 0 12px 30px -10px rgba(13, 148, 136, 0.4);
-            margin-bottom: 28px;
-            position: relative;
-            overflow: hidden;
+            margin-bottom: 24px;
         }
         .hero-banner h1 { 
             font-weight: 800; 
-            font-size: 2.5rem; 
+            font-size: 2.4rem; 
             margin: 0; 
             color: #ffffff !important;
-            letter-spacing: -0.02em;
         }
         .hero-banner p { 
             color: #ccfbf1; 
-            font-size: 1.1rem; 
-            margin-top: 8px; 
+            font-size: 1.05rem; 
+            margin-top: 6px; 
             margin-bottom: 0;
-            font-weight: 500;
         }
 
-        /* Modernisierte Karten (Cards) */
-        .fund-card {
-            background-color: #ffffff;
+        /* Karten mit Hover-Animation & Zoom-Effekt */
+        .fund-card-container {
+            background: #ffffff;
             border-radius: 20px;
-            padding: 0;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
             border: 1px solid #e2e8f0;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
             overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
             margin-bottom: 20px;
         }
-        
-        .fund-card-body {
-            padding: 20px;
+
+        .fund-card-container:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.12);
+            border-color: #cbd5e1;
+        }
+
+        .fund-card-details {
+            padding: 16px 18px;
+            background: #ffffff;
         }
 
         .fund-card-title {
-            font-size: 1.25rem;
+            font-size: 1.15rem;
             font-weight: 700;
             color: #0f172a;
-            margin-bottom: 12px;
+            margin-top: 6px;
+            margin-bottom: 10px;
         }
 
-        /* Badges / Tags */
+        /* Badges */
         .badge {
             display: inline-block;
-            padding: 4px 12px;
+            padding: 4px 10px;
             border-radius: 9999px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            margin-bottom: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-right: 4px;
+            margin-bottom: 6px;
         }
         .badge-kategorie { background-color: #e0f2fe; color: #0369a1; }
         .badge-ort { background-color: #fef3c7; color: #b45309; }
 
-        /* Eingabefelder Verfeinerung */
-        div[data-baseweb="input"] > div {
-            border-radius: 14px !important;
-            border-color: #cbd5e1 !important;
-            background-color: #ffffff !important;
-        }
-        div[data-baseweb="select"] > div {
-            border-radius: 14px !important;
-            border-color: #cbd5e1 !important;
-            background-color: #ffffff !important;
-        }
+        /* Custom Input & Form Styling */
+        div[data-baseweb="input"] > div { border-radius: 14px !important; }
+        div[data-baseweb="select"] > div { border-radius: 14px !important; }
+        .stButton>button { border-radius: 12px !important; font-weight: 600 !important; }
 
-        /* Styling der Buttons */
-        .stButton>button {
-            border-radius: 12px !important;
-            font-weight: 600 !important;
-            transition: all 0.2s ease-in-out !important;
-        }
-        
         .upload-section {
             background-color: #ffffff;
             border-radius: 20px;
@@ -140,7 +129,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# 2. SUPABASE / CSV BACKEND (Unverändert)
+# 2. SUPABASE / CSV BACKEND
 # =========================================================
 @st.cache_resource
 def get_supabase():
@@ -217,7 +206,7 @@ def add_new_item(item_dict):
     save_items(items)
 
 # =========================================================
-# 3. HUGGING FACE KI-MODELL & ÜBERSETZUNG (Unverändert)
+# 3. HUGGING FACE KI-MODELL & ÜBERSETZUNG (DEUTSCH)
 # =========================================================
 @st.cache_resource
 def load_hf_model():
@@ -245,15 +234,12 @@ def analyze_image_with_hf(image_file):
         
         raw_image = Image.open(image_file).convert('RGB')
         
-        # Bild durch das Hugging Face Modell verarbeiten
         inputs = processor(raw_image, return_tensors="pt")
         out = model.generate(**inputs, max_new_tokens=50)
         description_en = processor.decode(out[0], skip_special_tokens=True)
 
-        # Ins Deutsche übersetzen
         description_de = translate_to_german(description_en)
 
-        # Zuordnung zu Schul-Kategorien basierend auf erkannten Wörtern
         desc_lower = description_en.lower()
         
         kategorie = "Sonstiges"
@@ -273,12 +259,14 @@ def analyze_image_with_hf(image_file):
         return None, f"Fehler bei der Hugging Face Modell-Analyse: {str(e)}"
 
 # =========================================================
-# 4. SESSION STATE (Unverändert)
+# 4. SESSION STATE & OWNER / ADMIN RECHTE
 # =========================================================
 if "current_user" not in st.session_state:
     st.session_state.current_user = "Schüler / Finder"
 if "tab" not in st.session_state:
     st.session_state.tab = "entdecken"
+if "is_owner" not in st.session_state:
+    st.session_state.is_owner = False
 
 if "f_titel" not in st.session_state:
     st.session_state.f_titel = ""
@@ -287,11 +275,14 @@ if "f_kategorie" not in st.session_state:
 if "f_ort" not in st.session_state:
     st.session_state.f_ort = ""
 
+# Passwort für den Owner/Admin Modus (Standard: admin123)
+OWNER_PASSWORD = st.secrets.get("OWNER_PASSWORD", "admin123")
+
 # =========================================================
-# 5. OBERFLÄCHE MIT VERBESSERTEM HTML/CSS LAYOUT
+# 5. OBERFLÄCHE
 # =========================================================
 
-# Hero Banner (HTML)
+# Hero Banner
 st.markdown("""
     <div class="hero-banner">
         <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -304,7 +295,19 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-st.session_state.current_user = st.text_input("👤 Dein Name / Klasse (optional):", value=st.session_state.current_user)
+# User-Eingabe & Owner Mode Toggle
+top_col1, top_col2 = st.columns([2, 1])
+with top_col1:
+    st.session_state.current_user = st.text_input("👤 Dein Name / Klasse:", value=st.session_state.current_user)
+with top_col2:
+    pwd_input = st.text_input("🔑 Owner / Admin Passwort:", type="password", placeholder="admin123")
+    if pwd_input == OWNER_PASSWORD:
+        st.session_state.is_owner = True
+        st.caption("✅ Owner-Rechte aktiv (Löschen erlaubt)")
+    else:
+        st.session_state.is_owner = False
+        if pwd_input:
+            st.caption("❌ Falsches Passwort")
 
 st.write("")
 nav_c1, nav_c2 = st.columns(2)
@@ -319,39 +322,39 @@ with nav_c2:
 
 st.write("")
 
-# TAB 1: ENTDECKEN
+# TAB 1: ENTDECKEN (MIT HOVER-EFFEKTEN)
 if st.session_state.tab == "entdecken":
     items = load_items()
     cols = st.columns(3)
+    
     for idx, item in enumerate(items):
         with cols[idx % 3]:
-            with st.container():
-                img_src = item.get("bild_base64") or "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop&q=80"
-                
-                # HTML-Card Header & Badges
-                st.markdown(f"""
-                    <div style="background: #ffffff; border-radius: 18px 18px 0 0; overflow: hidden; border: 1px solid #e2e8f0; border-bottom: none;">
+            img_src = item.get("bild_base64") or "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop&q=80"
+            
+            # HTML Container mit Hover-CSS-Klasse wrapped
+            st.markdown(f"""
+                <div class="fund-card-container">
+                    <div style="height: 200px; overflow: hidden;">
+                        <img src="{img_src}" style="width: 100%; height: 100%; object-fit: cover;">
                     </div>
-                """, unsafe_allow_html=True)
-                
-                st.image(img_src, use_container_width=True)
-                
-                # HTML Details innerhalb der Karte
-                st.markdown(f"""
-                    <div style="background: #ffffff; padding: 15px; border-radius: 0 0 18px 18px; border: 1px solid #e2e8f0; border-top: none; margin-top: -15px; margin-bottom: 10px;">
+                    <div class="fund-card-details">
                         <span class="badge badge-kategorie">🏷️ {item.get('kategorie')}</span>
                         <span class="badge badge-ort">📍 {item.get('fundort')}</span>
                         <div class="fund-card-title">{item.get('titel', 'Unbenannt')}</div>
                         <div style="font-size: 0.85rem; color: #64748b; line-height: 1.5;">
-                            <b>Raum/Bereich:</b> {item.get('raum')}<br>
+                            <b>Raum:</b> {item.get('raum')}<br>
                             <b>Finder:</b> {item.get('uploader')}<br>
                             <b>Datum:</b> {item.get('datum')}
                         </div>
                     </div>
-                """, unsafe_allow_html=True)
-                
-                if st.button("🗑️ Löschen", key=f"del_{item['id']}", use_container_width=True):
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # Löschen-Button NUR anzeigen, wenn der Nutzer Owner/Admin ist
+            if st.session_state.is_owner:
+                if st.button(f"🗑️ Löschen (#{item['id']})", key=f"del_{item['id']}", use_container_width=True):
                     delete_item(item["id"])
+                    st.toast("Eintrag gelöscht!")
                     st.rerun()
 
 # TAB 2: HOCHLADEN
