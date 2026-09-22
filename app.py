@@ -1,14 +1,20 @@
 import os
-import json
 import base64
 import datetime
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
+from PIL import Image
 from supabase import create_client, Client
 
+# Hugging Face Transformers Integration
+try:
+    from transformers import BlipProcessor, BlipForConditionalGeneration
+    HAS_HF = True
+except ImportError:
+    HAS_HF = False
+
 # =========================================================
-# 1. STREAMLIT CONFIG (Vollbild-Einstellung)
+# 1. STREAMLIT CONFIG & DESIGN
 # =========================================================
 st.set_page_config(
     page_title="FundSpot – Schul-Fundbüro",
@@ -19,14 +25,39 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        #MainMenu, footer, header {visibility: hidden;}
-        .block-container {padding: 0rem !important; max-width: 100% !important;}
-        iframe {display: block; border: none; width: 100vw !important; height: 100vh !important;}
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+
+        html, body, [class*="css"], .stApp {
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            background-color: #f8fafc !important;
+            color: #0f172a !important;
+        }
+
+        #MainMenu, footer, header { visibility: hidden !important; }
+        .block-container {
+            padding-top: 1.5rem !important;
+            padding-bottom: 4rem !important;
+            max-width: 1100px !important;
+        }
+
+        .hero-banner {
+            background: linear-gradient(135deg, #166534 0%, #15803d 100%);
+            border-radius: 20px;
+            padding: 28px 32px;
+            color: #ffffff;
+            box-shadow: 0 10px 20px rgba(22, 101, 52, 0.15);
+            margin-bottom: 24px;
+        }
+        .hero-banner h1 { font-weight: 800; font-size: 2.2rem; margin: 0; color: #ffffff !important; }
+        .hero-banner p { color: #dcfce7; font-size: 1rem; margin-top: 6px; margin-bottom: 0; }
+
+        div[data-baseweb="input"] > div { border-radius: 12px !important; }
+        div[data-baseweb="select"] > div { border-radius: 12px !important; }
     </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# 2. SUPABASE / DATENBANK BACKEND
+# 2. SUPABASE / CSV BACKEND
 # =========================================================
 @st.cache_resource
 def get_supabase():
@@ -45,14 +76,16 @@ def load_items():
     if supabase:
         try:
             res = supabase.table("fundstuecke").select("*").order("id", desc=True).execute()
-            return res.data
+            if res.data:
+                return res.data
         except Exception:
             pass
             
     csv_file = "fundbuero_db.csv"
     if os.path.exists(csv_file):
         try:
-            return pd.read_csv(csv_file).fillna("").to_dict(orient="records")
+            df = pd.read_csv(csv_file).fillna("")
+            return df.to_dict(orient="records")
         except Exception:
             pass
 
@@ -67,444 +100,197 @@ def load_items():
             "status": "Offen",
             "kontakt": "Sekretariat",
             "uploader": "Johann (8b)",
+            "beansprucht_von": "",
             "bild_base64": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop&q=80"
-        },
-        {
-            "id": 2,
-            "titel": "Blaue Adidas Strickjacke",
-            "kategorie": "Kleidung",
-            "fundort": "Turnhalle",
-            "raum": "Halle 2",
-            "datum": "2026-09-21",
-            "status": "Offen",
-            "kontakt": "Hausmeister",
-            "uploader": "Maria (10a)",
-            "bild_base64": "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=600&auto=format&fit=crop&q=80"
         }
     ]
     pd.DataFrame(default_data).to_csv(csv_file, index=False)
     return default_data
 
-# Akzeptiere eingehende Events aus der HTML-App (Hinzufügen / Löschen)
-if "last_action" not in st.session_state:
-    st.session_state.last_action = None
+def save_items(items):
+    csv_file = "fundbuero_db.csv"
+    pd.DataFrame(items).to_csv(csv_file, index=False)
 
-# =========================================================
-# 3. HTML / CSS / JAVASCRIPT APP (POURE OBERFLÄCHE)
-# =========================================================
-current_data = load_items()
-data_json = json.dumps(current_data, ensure_ascii=False)
-
-html_template = f"""
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FundSpot</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+def delete_item(item_id):
+    items = load_items()
+    items = [i for i in items if str(i["id"]) != str(item_id)]
     
-    <style>
-        :root {{
-            --primary: #1b5e20;
-            --primary-light: #2e7d32;
-            --primary-bg: #e8f5e9;
-            --bg-main: #f4f7f5;
-            --card-bg: #ffffff;
-            --text-main: #111827;
-            --text-muted: #6b7280;
-            --border: #e5e7eb;
-            --danger: #ef4444;
-            --danger-bg: #fef2f2;
-            --radius-lg: 20px;
-            --radius-md: 14px;
-            --radius-sm: 8px;
-            --shadow: 0 4px 16px rgba(0,0,0,0.04);
-        }}
+    if supabase:
+        try:
+            supabase.table("fundstuecke").delete().eq("id", item_id).execute()
+        except Exception:
+            pass
+    save_items(items)
 
-        * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
-        body {{ background-color: var(--bg-main); color: var(--text-main); padding: 20px; min-height: 100vh; }}
-        .container {{ max-width: 1100px; margin: 0 auto; }}
+def add_new_item(item_dict):
+    items = load_items()
+    items.insert(0, item_dict)
+    
+    if supabase:
+        try:
+            supabase.table("fundstuecke").insert(item_dict).execute()
+        except Exception:
+            pass
+    save_items(items)
 
-        /* Top Header Navigation */
-        .header {{
-            background: var(--card-bg); border-radius: var(--radius-lg); padding: 14px 24px;
-            display: flex; justify-content: space-between; align-items: center;
-            box-shadow: var(--shadow); border: 1px solid var(--border); margin-bottom: 20px;
-        }}
-        .logo {{ display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.3rem; color: var(--primary); }}
-        .logo-icon {{ background: var(--primary); color: white; width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }}
+# =========================================================
+# 3. HUGGING FACE KI-MODELL LADEN & BILDER ANALYSIEREN
+# =========================================================
+@st.cache_resource
+def load_hf_model():
+    """Lädt das vortrainierte BLIP-Modell von Hugging Face einmalig im Cache."""
+    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+    model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+    return processor, model
+
+def analyze_image_with_hf(image_file):
+    if not HAS_HF:
+        return None, "Die Pakete 'transformers' und 'torch' fehlen in deiner requirements.txt."
+
+    try:
+        processor, model = load_hf_model()
         
-        .nav-btn {{
-            background: transparent; border: none; padding: 10px 18px; border-radius: var(--radius-md);
-            font-weight: 700; color: var(--text-muted); cursor: pointer; transition: all 0.2s;
-            display: flex; align-items: center; gap: 8px; font-size: 0.9rem;
-        }}
-        .nav-btn:hover, .nav-btn.active {{ background: var(--primary-bg); color: var(--primary); }}
-        .nav-btn-main {{ background: var(--primary); color: white !important; }}
-        .nav-btn-main:hover {{ background: var(--primary-light) !important; }}
-
-        /* User & Admin Toolbar */
-        .user-bar {{
-            background: white; border-radius: var(--radius-md); padding: 10px 18px;
-            margin-bottom: 20px; border: 1px solid var(--border); display: flex;
-            align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-        }}
-        .user-input {{ display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }}
-        .user-input input {{
-            border: 1px solid var(--border); padding: 6px 10px; border-radius: var(--radius-sm);
-            outline: none; font-weight: 600; color: var(--text-main); background: #f8fafc;
-        }}
-
-        /* Hero Banner */
-        .hero {{
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-            border-radius: var(--radius-lg); padding: 32px; color: white;
-            box-shadow: 0 10px 24px rgba(27, 94, 32, 0.15); margin-bottom: 24px;
-        }}
-        .hero h1 {{ font-size: 1.9rem; font-weight: 800; margin-bottom: 6px; }}
-        .hero p {{ color: #e8f5e9; font-size: 0.95rem; }}
-
-        /* Search & Filter Controls */
-        .filters {{ display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 24px; }}
-        .search-box {{
-            background: white; border: 1px solid var(--border); border-radius: var(--radius-md);
-            padding: 10px 16px; display: flex; align-items: center; gap: 10px; box-shadow: var(--shadow);
-        }}
-        .search-box input, .select-box select {{
-            border: none; outline: none; width: 100%; font-size: 0.9rem; background: transparent; font-weight: 500;
-        }}
-        .select-box {{
-            background: white; border: 1px solid var(--border); border-radius: var(--radius-md);
-            padding: 10px 16px; box-shadow: var(--shadow); display: flex; align-items: center;
-        }}
-
-        /* Grid Cards */
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }}
-        .card {{
-            background: white; border-radius: var(--radius-lg); border: 1px solid var(--border);
-            padding: 16px; box-shadow: var(--shadow); transition: all 0.2s ease; cursor: pointer;
-            display: flex; flex-direction: column; gap: 12px;
-        }}
-        .card:hover {{ transform: translateY(-4px); border-color: #a5d6a7; }}
-        .card-img {{ width: 100%; height: 170px; border-radius: var(--radius-md); object-fit: cover; background: #f1f5f9; }}
+        raw_image = Image.open(image_file).convert('RGB')
         
-        .badge {{ padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; }}
-        .badge-offen {{ background: var(--primary-bg); color: var(--primary); }}
+        # Bild durch das Modell verarbeiten
+        inputs = processor(raw_image, return_tensors="pt")
+        out = model.generate(**inputs, max_new_tokens=50)
+        description_en = processor.decode(out[0], skip_special_tokens=True)
+
+        # Zuordnung zu Schul-Kategorien basierend auf erkannten Wörtern
+        desc_lower = description_en.lower()
         
-        .uploader-tag {{ background: #f1f5f9; color: #475569; padding: 3px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }}
-        .card-title {{ font-size: 1.1rem; font-weight: 800; color: var(--text-main); line-height: 1.2; }}
-        .card-loc {{ color: var(--text-muted); font-size: 0.85rem; display: flex; align-items: center; gap: 6px; }}
+        kategorie = "Sonstiges"
+        if any(w in desc_lower for w in ["jacket", "coat", "shirt", "pants", "sweater", "hoodie", "shoe", "sneaker", "hat", "cap", "glove", "scarf", "clothes"]):
+            kategorie = "Kleidung"
+        elif any(w in desc_lower for w in ["phone", "laptop", "tablet", "headphone", "earphone", "calculator", "cable", "charger", "electronic"]):
+            kategorie = "Elektronik"
+        elif any(w in desc_lower for w in ["book", "notebook", "paper", "binder", "pencil", "pen", "case"]):
+            kategorie = "Bücher & Hefte"
 
-        .btn-delete {{
-            background: var(--danger-bg); color: var(--danger); border: 1px solid #fca5a5;
-            padding: 8px; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 700;
-            cursor: pointer; transition: all 0.2s; width: 100%; margin-top: 4px; text-align: center;
-        }}
-        .btn-delete:hover {{ background: var(--danger); color: white; }}
+        return {
+            "beschreibung": description_en,
+            "kategorie": kategorie
+        }, None
 
-        /* Screens Switcher */
-        .screen {{ display: none; }}
-        .screen.active {{ display: block; }}
+    except Exception as e:
+        return None, f"Fehler bei der Hugging Face Modell-Analyse: {str(e)}"
 
-        /* Form Styling */
-        .form-card {{
-            background: white; border-radius: var(--radius-lg); padding: 28px;
-            border: 1px solid var(--border); max-width: 600px; margin: 0 auto; box-shadow: var(--shadow);
-        }}
-        .form-title {{ font-size: 1.5rem; font-weight: 800; color: var(--primary); margin-bottom: 16px; text-align: center; }}
+# =========================================================
+# 4. SESSION STATE
+# =========================================================
+if "current_user" not in st.session_state:
+    st.session_state.current_user = "Schüler / Finder"
+if "tab" not in st.session_state:
+    st.session_state.tab = "entdecken"
 
-        .form-group {{ display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }}
-        .form-group label {{ font-weight: 700; font-size: 0.85rem; color: #374151; }}
-        .form-group input, .form-group select {{
-            padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md);
-            outline: none; font-size: 0.9rem; background: #f9fafb;
-        }}
+if "f_titel" not in st.session_state:
+    st.session_state.f_titel = ""
+if "f_kategorie" not in st.session_state:
+    st.session_state.f_kategorie = "Sonstiges"
+if "f_ort" not in st.session_state:
+    st.session_state.f_ort = ""
 
-        .file-upload-box {{
-            border: 2px dashed var(--border); border-radius: var(--radius-md); padding: 20px;
-            text-align: center; cursor: pointer; background: #fafafa;
-        }}
-        .file-upload-box:hover {{ border-color: var(--primary); background: var(--primary-bg); }}
-
-        .btn-submit {{
-            background: var(--primary); color: white; border: none; padding: 14px;
-            border-radius: var(--radius-md); font-weight: 800; font-size: 0.95rem; cursor: pointer;
-            width: 100%; margin-top: 10px; transition: all 0.2s;
-        }}
-        .btn-submit:hover {{ background: var(--primary-light); }}
-
-        .back-btn {{
-            background: white; border: 1px solid var(--border); padding: 8px 16px;
-            border-radius: var(--radius-md); font-weight: 700; cursor: pointer; margin-bottom: 16px;
-            display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 0.85rem;
-        }}
-
-        #imgPreview {{ width: 100%; max-height: 180px; object-fit: cover; border-radius: var(--radius-md); margin-top: 10px; display: none; }}
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <header class="header">
-        <div class="logo">
-            <div class="logo-icon"><i class="fa-solid fa-leaf"></i></div>
-            <span>FundSpot</span>
-        </div>
-        <div style="display: flex; gap: 8px;">
-            <button class="nav-btn active" id="nav-home" onclick="switchScreen('home')">
-                <i class="fa-solid fa-compass"></i> Entdecken
-            </button>
-            <button class="nav-btn nav-btn-main" id="nav-add" onclick="switchScreen('add')">
-                <i class="fa-solid fa-plus"></i> Hinzufügen
-            </button>
-        </div>
-    </header>
-
-    <div class="user-bar">
-        <div class="user-input">
-            <i class="fa-solid fa-user-circle" style="color: var(--primary);"></i>
-            <span>Dein Name / Klasse:</span>
-            <input type="text" id="accountName" value="Johann (8b)" onchange="saveName()">
-        </div>
-        <div class="user-input">
-            <i class="fa-solid fa-key"></i>
-            <span>Admin-Passcode:</span>
-            <input type="password" id="adminPass" placeholder="Löschrecht aktivieren" oninput="toggleAdmin()">
-        </div>
+# =========================================================
+# 5. OBERFLÄCHE
+# =========================================================
+st.markdown("""
+    <div class="hero-banner">
+        <h1>🌱 FundSpot</h1>
+        <p>Das digitale Schul-Fundbüro – Mit Hugging Face KI-Bilderkennung</p>
     </div>
+""", unsafe_allow_html=True)
 
-    <!-- MAIN HOME SCREEN -->
-    <main id="screen-home" class="screen active">
-        <div class="hero">
-            <h1>Digitales Fundbüro</h1>
-            <p>Finde deine verlorenen Sachen schnell und einfach wieder.</p>
-        </div>
+st.session_state.current_user = st.text_input("👤 Dein Name / Klasse (optional):", value=st.session_state.current_user)
 
-        <div class="filters">
-            <div class="search-box">
-                <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
-                <input type="text" id="searchInput" placeholder="Suchen nach Rucksack, Jacke, Halle..." oninput="filterItems()">
-            </div>
-            <div class="select-box">
-                <select id="catSelect" onchange="filterItems()">
-                    <option value="Alle">Alle Kategorien</option>
-                    <option value="Kleidung">Kleidung</option>
-                    <option value="Elektronik">Elektronik</option>
-                    <option value="Bücher & Hefte">Bücher & Hefte</option>
-                    <option value="Sonstiges">Sonstiges</option>
-                </select>
-            </div>
-        </div>
+st.write("")
+nav_c1, nav_c2 = st.columns(2)
+with nav_c1:
+    if st.button("🔍 Fundstücke durchsuchen", use_container_width=True, type="primary" if st.session_state.tab == "entdecken" else "secondary"):
+        st.session_state.tab = "entdecken"
+        st.rerun()
+with nav_c2:
+    if st.button("➕ Fundstück hochladen (Hugging Face KI)", use_container_width=True, type="primary" if st.session_state.tab == "hochladen" else "secondary"):
+        st.session_state.tab = "hochladen"
+        st.rerun()
 
-        <div class="grid" id="itemsGrid"></div>
-    </main>
+st.write("")
 
-    <!-- DETAIL VIEW SCREEN -->
-    <main id="screen-detail" class="screen">
-        <button class="back-btn" onclick="switchScreen('home')"><i class="fa-solid fa-arrow-left"></i> Zurück</button>
-        <div class="form-card" id="detailCard"></div>
-    </main>
+# TAB 1: ENTDECKEN
+if st.session_state.tab == "entdecken":
+    items = load_items()
+    cols = st.columns(3)
+    for idx, item in enumerate(items):
+        with cols[idx % 3]:
+            with st.container(border=True):
+                img_src = item.get("bild_base64") or "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop&q=80"
+                st.image(img_src, use_container_width=True)
+                st.subheader(item.get("titel", "Unbenannt"))
+                st.write(f"🏷️ **Kategorie:** {item.get('kategorie')}")
+                st.write(f"📍 **Ort:** {item.get('fundort')} ({item.get('raum')})")
+                st.write(f"👤 **Eingetragen von:** {item.get('uploader')}")
+                
+                if st.button("🗑️ Löschen", key=f"del_{item['id']}", use_container_width=True):
+                    delete_item(item["id"])
+                    st.rerun()
 
-    <!-- ADD ITEM SCREEN -->
-    <main id="screen-add" class="screen">
-        <button class="back-btn" onclick="switchScreen('home')"><i class="fa-solid fa-arrow-left"></i> Abbrechen</button>
-        <div class="form-card">
-            <div class="form-title">Neues Fundstück eintragen</div>
-
-            <form onsubmit="submitForm(event)">
-                <div class="form-group">
-                    <label>Bezeichnung des Gegenstands *</label>
-                    <input type="text" id="formTitel" placeholder="z. B. Roter Turnbeutel" required>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    <div class="form-group">
-                        <label>Kategorie</label>
-                        <select id="formKategorie">
-                            <option value="Sonstiges">Sonstiges</option>
-                            <option value="Kleidung">Kleidung</option>
-                            <option value="Elektronik">Elektronik</option>
-                            <option value="Bücher & Hefte">Bücher & Hefte</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Uploader Name</label>
-                        <input type="text" id="formUploader" readonly style="background: #e2e8f0;">
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    <div class="form-group">
-                        <label>Fundort *</label>
-                        <input type="text" id="formFundort" placeholder="z. B. Mensa, Pausenhof" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Raum / Bereich</label>
-                        <input type="text" id="formRaum" placeholder="z. B. Raum 102">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Abgabeort / Kontaktperson</label>
-                    <input type="text" id="formKontakt" placeholder="z. B. Sekretariat, Hausmeister">
-                </div>
-
-                <div class="form-group">
-                    <label>Foto hinzufügen</label>
-                    <div class="file-upload-box" onclick="document.getElementById('fileInput').click()">
-                        <i class="fa-solid fa-cloud-arrow-up" style="font-size: 1.5rem; color: var(--primary);"></i>
-                        <p style="font-weight: 700; font-size: 0.85rem; margin-top: 4px;">Klicke hier zum Hochladen</p>
-                        <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="previewFile(event)">
-                    </div>
-                    <img id="imgPreview" alt="Vorschau">
-                </div>
-
-                <button type="submit" class="btn-submit">🚀 Fundstück veröffentlichen</button>
-            </form>
-        </div>
-    </main>
-</div>
-
-<script>
-    let items = {data_json};
-    let base64Img = "";
-    let isAdmin = false;
-
-    function saveName() {{
-        const name = document.getElementById("accountName").value;
-        document.getElementById("formUploader").value = name || "Anonym";
-    }}
-
-    function toggleAdmin() {{
-        isAdmin = (document.getElementById("adminPass").value === "admin123");
-        filterItems();
-    }}
-
-    function renderGrid(list) {{
-        const grid = document.getElementById("itemsGrid");
-        grid.innerHTML = "";
-
-        if (!list || list.length === 0) {{
-            grid.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">Keine Fundstücke vorhanden.</p>`;
-            return;
-        }}
-
-        list.forEach(item => {{
-            const card = document.createElement("div");
-            card.className = "card";
+# TAB 2: HOCHLADEN
+elif st.session_state.tab == "hochladen":
+    st.subheader("📸 Neues Fundstück eintragen")
+    
+    with st.container(border=True):
+        uploaded_file = st.file_uploader("1. Wähle ein Foto aus", type=["jpg", "jpeg", "png", "webp"])
+        
+        b64_img = ""
+        if uploaded_file:
+            st.image(uploaded_file, caption="Vorschau", width=200)
+            b64_img = f"data:image/jpeg;base64,{base64.b64encode(uploaded_file.getvalue()).decode()}"
             
-            const defaultImg = "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop&q=80";
-            const imgSrc = (item.bild_base64 && item.bild_base64.length > 20) ? item.bild_base64 : defaultImg;
+            if st.button("🤗 Foto mit Hugging Face KI analysieren", type="primary", use_container_width=True):
+                with st.spinner("Hugging Face KI-Modell analysiert das Bild..."):
+                    ai_data, error_msg = analyze_image_with_hf(uploaded_file)
+                    
+                    if error_msg:
+                        st.error(f"❌ {error_msg}")
+                    elif ai_data:
+                        st.session_state.f_titel = ai_data.get("beschreibung", "").capitalize()
+                        st.session_state.f_kategorie = ai_data.get("kategorie", "Sonstiges")
+                        st.success("✅ Hugging Face KI hat das Bild erkannt und Kategorie zugewiesen!")
+                        st.rerun()
 
-            let deleteBtn = isAdmin ? `<button class="btn-delete" onclick="deleteItem(event, ${{item.id}})"><i class="fa-solid fa-trash"></i> Löschen</button>` : '';
+        st.divider()
+        st.write("### 2. Formular überprüfen & Veröffentlichen")
 
-            card.innerHTML = `
-                <div onclick="openDetail(${{item.id}})" style="display:flex; flex-direction:column; gap:8px;">
-                    <img src="${{imgSrc}}" class="card-img" alt="Foto">
-                    <div style="display:flex; justify-size:space-between; justify-content:space-between; align-items:center;">
-                        <span class="badge badge-offen">${{item.status || 'Offen'}}</span>
-                        <span class="uploader-tag">👤 ${{item.uploader || 'Anonym'}}</span>
-                    </div>
-                    <div class="card-title">${{item.titel}}</div>
-                    <div class="card-loc"><i class="fa-solid fa-location-dot" style="color: var(--primary);"></i> ${{item.fundort}} (${{item.raum || '-'}})</div>
-                </div>
-                ${{deleteBtn}}
-            `;
-            grid.appendChild(card);
-        }});
-    }}
+        titel_val = st.text_input("Gegenstand / Beschreibung *", value=st.session_state.f_titel)
+        
+        kategorien = ["Sonstiges", "Kleidung", "Elektronik", "Bücher & Hefte"]
+        kat_idx = kategorien.index(st.session_state.f_kategorie) if st.session_state.f_kategorie in kategorien else 0
+        kat_val = st.selectbox("Kategorie", kategorien, index=kat_idx)
+        
+        ort_val = st.text_input("Fundort *", value=st.session_state.f_ort)
+        raum_val = st.text_input("Raum / Bereich", placeholder="z. B. Sporthalle, Mensa, EG")
+        kontakt_val = st.text_input("Abgabeort / Kontakt", value="Sekretariat")
 
-    function filterItems() {{
-        const q = document.getElementById("searchInput").value.toLowerCase();
-        const cat = document.getElementById("catSelect").value;
-
-        const filtered = items.filter(item => {{
-            const matchQ = (item.titel && item.titel.toLowerCase().includes(q)) || (item.fundort && item.fundort.toLowerCase().includes(q));
-            const matchCat = (cat === "Alle" || item.kategorie === cat);
-            return matchQ && matchCat;
-        }});
-
-        renderGrid(filtered);
-    }}
-
-    function openDetail(id) {{
-        const item = items.find(i => i.id == id);
-        if(!item) return;
-
-        const defaultImg = "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop&q=80";
-        const imgSrc = (item.bild_base64 && item.bild_base64.length > 20) ? item.bild_base64 : defaultImg;
-
-        document.getElementById("detailCard").innerHTML = `
-            <img src="${{imgSrc}}" style="width:100%; height:220px; object-fit:cover; border-radius:var(--radius-md); margin-bottom:16px;">
-            <h2 style="font-size:1.5rem; font-weight:800; margin-bottom:12px;">${{item.titel}}</h2>
-            <div style="background:var(--bg-main); padding:16px; border-radius:var(--radius-md); font-size:0.9rem; display:flex; flex-direction:column; gap:8px;">
-                <div><strong>👤 Gemeldet von:</strong> ${{item.uploader || 'Anonym'}}</div>
-                <div><strong>🏷️ Kategorie:</strong> ${{item.kategorie || 'Sonstiges'}}</div>
-                <div><strong>📍 Ort:</strong> ${{item.fundort}} (${{item.raum || '-'}})</div>
-                <div><strong>🔑 Abgabeort/Kontakt:</strong> ${{item.kontakt || 'Sekretariat'}}</div>
-                <div><strong>📅 Datum:</strong> ${{item.datum || '-'}}</div>
-            </div>
-        `;
-        switchScreen('detail');
-    }}
-
-    function switchScreen(s) {{
-        document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
-        document.getElementById('screen-' + s).classList.add('active');
-        if(s === 'add') saveName();
-    }}
-
-    function previewFile(e) {{
-        const file = e.target.files[0];
-        if (file) {{
-            const reader = new FileReader();
-            reader.onload = function(evt) {{
-                base64Img = evt.target.result;
-                const img = document.getElementById("imgPreview");
-                img.src = base64Img;
-                img.style.display = "block";
-            }};
-            reader.readAsDataURL(file);
-        }}
-    }}
-
-    function submitForm(e) {{
-        e.preventDefault();
-        alert("Eintrag wird gespeichert...");
-        // Lokales Test-Hinzufügen direkt in der JS-Ansicht
-        const newItem = {{
-            id: Date.now(),
-            titel: document.getElementById("formTitel").value,
-            kategorie: document.getElementById("formKategorie").value,
-            uploader: document.getElementById("formUploader").value,
-            fundort: document.getElementById("formFundort").value,
-            raum: document.getElementById("formRaum").value,
-            kontakt: document.getElementById("formKontakt").value,
-            datum: new Date().toISOString().split('T')[0],
-            status: "Offen",
-            bild_base64: base64Img
-        }};
-        items.unshift(newItem);
-        filterItems();
-        switchScreen('home');
-    }}
-
-    function deleteItem(e, id) {{
-        e.stopPropagation();
-        if(confirm("Möchtest du dieses Fundstück löschen?")) {{
-            items = items.filter(i => i.id != id);
-            filterItems();
-        }}
-    }}
-
-    saveName();
-    renderGrid(items);
-</script>
-
-</body>
-</html>
-"""
-
-components.html(html_template, height=900, scrolling=True)
+        if st.button("🚀 Fundstück veröffentlichen", type="primary", use_container_width=True):
+            if not titel_val or not ort_val:
+                st.error("Bitte gib mindestens einen Titel/Gegenstand und den Ort ein.")
+            else:
+                new_entry = {
+                    "id": int(datetime.datetime.now().timestamp()),
+                    "titel": titel_val,
+                    "kategorie": kat_val,
+                    "fundort": ort_val,
+                    "raum": raum_val if raum_val else "-",
+                    "datum": str(datetime.date.today()),
+                    "status": "Offen",
+                    "kontakt": kontakt_val,
+                    "uploader": st.session_state.current_user,
+                    "beansprucht_von": "",
+                    "bild_base64": b64_img
+                }
+                add_new_item(new_entry)
+                st.toast("🎉 Fundstück erfolgreich eingetragen!")
+                st.session_state.f_titel = ""
+                st.session_state.f_ort = ""
+                st.session_state.tab = "entdecken"
+                st.rerun()
