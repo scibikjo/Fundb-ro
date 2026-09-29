@@ -502,6 +502,7 @@ elif st.session_state.tab == "game":
                 justify-content: center;
                 padding: 10px;
                 border-radius: 16px;
+                overflow: hidden;
             }
             .game-container {
                 position: relative;
@@ -510,9 +511,52 @@ elif st.session_state.tab == "game":
                 overflow: hidden;
                 background: #16181d;
                 border: 1px solid #2a2d37;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                width: 100%;
             }
-            canvas { display: block; background-color: #16181d; }
+
+            /* Vollbild-Modus Styles */
+            .game-container:fullscreen {
+                width: 100vw !important;
+                height: 100vh !important;
+                border-radius: 0;
+                border: none;
+                background: #0f1115;
+            }
+            .game-container:-webkit-full-screen {
+                width: 100vw !important;
+                height: 100vh !important;
+                border-radius: 0;
+                border: none;
+                background: #0f1115;
+            }
+
+            canvas { 
+                display: block; 
+                background-color: #16181d; 
+                max-width: 100%;
+                max-height: 100%;
+            }
             
+            .fullscreen-btn {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                background: rgba(26, 29, 36, 0.85);
+                border: 1px solid #2e3440;
+                color: #fff;
+                padding: 6px 12px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 0.85rem;
+                font-weight: bold;
+                z-index: 40;
+                transition: background 0.2s;
+            }
+            .fullscreen-btn:hover { background: #0d9488; }
+
             .modal-overlay {
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
                 background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px);
@@ -536,6 +580,7 @@ elif st.session_state.tab == "game":
                 position: absolute; bottom: 10px; right: 10px;
                 background: #1a1d24; border: 1px solid #2e3440; color: #888;
                 padding: 6px 10px; border-radius: 15px; cursor: pointer; font-size: 0.8rem;
+                z-index: 40;
             }
             .owner-dashboard {
                 position: absolute; bottom: 10px; left: 10px;
@@ -549,7 +594,8 @@ elif st.session_state.tab == "game":
         </style>
     </head>
     <body>
-        <div class="game-container">
+        <div class="game-container" id="gameContainer">
+            <button class="fullscreen-btn" id="fsBtn">⛶ Vollbild</button>
             <canvas id="gameCanvas" width="900" height="500"></canvas>
             <button class="secret-trigger" id="openSecretBtn">🔒 Owner Area</button>
             
@@ -574,11 +620,44 @@ elif st.session_state.tab == "game":
         <script>
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d');
+            const container = document.getElementById('gameContainer');
+            const fsBtn = document.getElementById('fsBtn');
+
             const WIDTH = 900, HEIGHT = 500, PLAYER_SIZE = 28, PLAYER_SPEED = 3.5;
             const keys = {};
 
             window.addEventListener('keydown', e => keys[e.code] = true);
             window.addEventListener('keyup', e => keys[e.code] = false);
+
+            // Vollbild-Funktionalität
+            function toggleFullscreen() {
+                if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                    if (container.requestFullscreen) {
+                        container.requestFullscreen();
+                    } else if (container.webkitRequestFullscreen) {
+                        container.webkitRequestFullscreen();
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    }
+                }
+            }
+
+            fsBtn.addEventListener('click', toggleFullscreen);
+
+            function updateFullscreenBtn() {
+                if (document.fullscreenElement || document.webkitFullscreenElement) {
+                    fsBtn.innerText = "❌ Beenden";
+                } else {
+                    fsBtn.innerText = "⛶ Vollbild";
+                }
+            }
+
+            document.addEventListener('fullscreenchange', updateFullscreenBtn);
+            document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
 
             function distance(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
             function vecNormalize(vx, vy) {
@@ -730,4 +809,4 @@ elif st.session_state.tab == "game":
     </html>
     """
 
-    components.html(game_html, height=560)
+    components.html(game_html, height=580)
