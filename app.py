@@ -649,12 +649,12 @@ elif st.session_state.tab == "hochladen":
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# TAB 3: BATTLE ROYALE MINI-GAME
+# TAB 3: BATTLE ROYALE MINI-GAME WITH LOOT DROPS
 elif st.session_state.tab == "game":
-    st.subheader("🎮 Battle Royale 2D – Pausenspiel")
+    st.subheader("🎮 Battle Royale 2D – Pausenspiel mit Item-Drops")
     st.caption(
-        "Verstecktes Owner-Menü unten rechts im Spiel nutzen. Passwort:"
-        " **`owner123`**"
+        "Steuerung: P1 (WASD + Leertaste) | P2 (Pfeiltasten + Enter) | "
+        "Owner Passwort: **`owner123`**"
     )
 
     game_html = """
@@ -776,6 +776,7 @@ elif st.session_state.tab == "game":
                 <button class="dash-btn" onclick="ownerGodMode(1)">P1: Unendlich Leben/Schild</button>
                 <button class="dash-btn" onclick="ownerGiveWeapon(1, 'Minigun')">P1: Minigun geben</button>
                 <button class="dash-btn" onclick="ownerGiveWeapon(1, 'RocketLauncher')">P1: Raketenwerfer geben</button>
+                <button class="dash-btn" onclick="ownerSpawnDrop()">🎁 Random Drop Spawnen</button>
                 <button class="dash-btn" onclick="ownerNukeEnemies(1)">P1: Gegner vernichten</button>
             </div>
         </div>
@@ -838,7 +839,10 @@ elif st.session_state.tab == "game":
             }
 
             let bullets = [];
+            let itemDrops = [];
+            let lastDropTime = 0;
 
+            // Waffendefinitionen
             class Weapon {
                 constructor(name, cooldownMs, bulletSpeed, bulletDamage, bulletSize, bulletColor) {
                     this.name = name; this.cooldownMs = cooldownMs; this.bulletSpeed = bulletSpeed;
@@ -858,11 +862,64 @@ elif st.session_state.tab == "game":
                 }
             }
 
+            class Pistol extends Weapon {
+                constructor() { super("Pistole", 250, 7.0, 15, 6, '#ffdc5a'); }
+            }
             class Minigun extends Weapon {
-                constructor() { super("Minigun", 50, 10.0, 5, 4, '#ffc864'); }
+                constructor() { super("Minigun", 60, 9.0, 7, 4, '#ffc864'); }
             }
             class RocketLauncher extends Weapon {
-                constructor() { super("Raketenwerfer", 1500, 12.0, 100, 10, '#ff3232'); }
+                constructor() { super("Raketenwerfer", 1400, 11.0, 90, 10, '#ff3232'); }
+            }
+
+            // Item Drops (Kisten) System
+            class ItemDrop {
+                constructor(x, y, type) {
+                    this.x = x;
+                    this.y = y;
+                    this.type = type; // 'Minigun', 'RocketLauncher', 'Medikit', 'Shield'
+                    this.size = 20;
+                    this.alive = true;
+                }
+                draw() {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    
+                    if (this.type === 'Minigun') {
+                        ctx.fillStyle = '#f97316';
+                        ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 12px sans-serif';
+                        ctx.fillText('MG', -8, 4);
+                    } else if (this.type === 'RocketLauncher') {
+                        ctx.fillStyle = '#ef4444';
+                        ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 12px sans-serif';
+                        ctx.fillText('RL', -7, 4);
+                    } else if (this.type === 'Medikit') {
+                        ctx.fillStyle = '#22c55e';
+                        ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 14px sans-serif';
+                        ctx.fillText('+', -4, 5);
+                    } else if (this.type === 'Shield') {
+                        ctx.fillStyle = '#3b82f6';
+                        ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 12px sans-serif';
+                        ctx.fillText('🛡️', -8, 4);
+                    }
+                    ctx.restore();
+                }
+            }
+
+            function spawnRandomDrop(x, y) {
+                const types = ['Minigun', 'RocketLauncher', 'Medikit', 'Shield'];
+                const randType = types[Math.floor(Math.random() * types.length)];
+                const dropX = x !== undefined ? x : Math.random() * (WIDTH - 60) + 30;
+                const dropY = y !== undefined ? y : Math.random() * (HEIGHT - 60) + 30;
+                itemDrops.push(new ItemDrop(dropX, dropY, randType));
             }
 
             class Bullet {
@@ -884,7 +941,7 @@ elif st.session_state.tab == "game":
                 constructor(id, x, y, color, controls) {
                     this.id = id; this.x = x; this.y = y; this.color = color; this.controls = controls;
                     this.health = 300; this.shield = 200; this.aimDir = { x: 1, y: 0 };
-                    this.weapon = new Weapon("Pistole", 250, 7.0, 12, 6, '#ffdc5a');
+                    this.weapon = new Pistol();
                     this.alive = true; this.godMode = false;
                 }
                 handleInput(nowMs) {
@@ -913,6 +970,17 @@ elif st.session_state.tab == "game":
                     if (keys[this.controls.shoot]) {
                         this.weapon.tryShoot(nowMs, this, closest);
                     }
+
+                    // Item Einsammeln
+                    itemDrops.forEach(drop => {
+                        if (drop.alive && distance(this.x, this.y, drop.x, drop.y) < PLAYER_SIZE / 2 + drop.size / 2) {
+                            if (drop.type === 'Minigun') this.weapon = new Minigun();
+                            else if (drop.type === 'RocketLauncher') this.weapon = new RocketLauncher();
+                            else if (drop.type === 'Medikit') this.health = Math.min(300, this.health + 100);
+                            else if (drop.type === 'Shield') this.shield = Math.min(200, this.shield + 100);
+                            drop.alive = false;
+                        }
+                    });
                 }
                 takeDamage(amount) {
                     if (this.godMode || !this.alive) return;
@@ -928,6 +996,8 @@ elif st.session_state.tab == "game":
                     if (this.health <= 0) {
                         this.health = 0;
                         this.alive = false;
+                        // Drop beim Sterben erzeugen
+                        spawnRandomDrop(this.x, this.y);
                     }
                 }
                 draw() {
@@ -943,11 +1013,15 @@ elif st.session_state.tab == "game":
                     ctx.lineTo(this.x + this.aimDir.x * 20, this.y + this.aimDir.y * 20);
                     ctx.stroke();
 
-                    // Statusleiste
+                    // Statusleiste & Waffenanzeige
                     ctx.fillStyle = '#ff4444';
-                    ctx.fillRect(this.x - 20, this.y - 25, 40 * (this.health / 300), 4);
+                    ctx.fillRect(this.x - 20, this.y - 28, 40 * (this.health / 300), 4);
                     ctx.fillStyle = '#00aaff';
-                    ctx.fillRect(this.x - 20, this.y - 20, 40 * (this.shield / 200), 4);
+                    ctx.fillRect(this.x - 20, this.y - 22, 40 * (this.shield / 200), 4);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '10px sans-serif';
+                    ctx.fillText(this.weapon.name, this.x - 20, this.y - 32);
                 }
             }
 
@@ -990,6 +1064,10 @@ elif st.session_state.tab == "game":
                 }
             };
 
+            window.ownerSpawnDrop = function() {
+                spawnRandomDrop();
+            };
+
             window.ownerNukeEnemies = function(pId) {
                 players.forEach(p => { if (p.id !== pId) p.takeDamage(9999); });
             };
@@ -998,11 +1076,21 @@ elif st.session_state.tab == "game":
             function gameLoop(time) {
                 ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
+                // Automatischer Item-Drop alle 8 Sekunden
+                if (time - lastDropTime > 8000) {
+                    spawnRandomDrop();
+                    lastDropTime = time;
+                }
+
                 // Grid zeichnen
                 ctx.strokeStyle = '#1f232d';
                 ctx.lineWidth = 1;
                 for (let x = 0; x < WIDTH; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, HEIGHT); ctx.stroke(); }
                 for (let y = 0; y < HEIGHT; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WIDTH, y); ctx.stroke(); }
+
+                // Drops zeichnen
+                itemDrops.forEach(drop => drop.draw());
+                itemDrops = itemDrops.filter(drop => drop.alive);
 
                 players.forEach(p => {
                     p.handleInput(time);
