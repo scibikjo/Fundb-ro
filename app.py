@@ -649,9 +649,9 @@ elif st.session_state.tab == "hochladen":
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# TAB 3: BATTLE ROYALE MINI-GAME WITH LOOT DROPS
+# TAB 3: BATTLE ROYALE MINI-GAME WITH LOOT DROPS (FAST BULLETS & HIGH DROP RATE)
 elif st.session_state.tab == "game":
-    st.subheader("🎮 Battle Royale 2D – Pausenspiel mit Item-Drops")
+    st.subheader("🎮 Battle Royale 2D – Pausenspiel mit Schnellen Geschossen & Hoher Droprate")
     st.caption(
         "Steuerung: P1 (WASD + Leertaste) | P2 (Pfeiltasten + Enter) | "
         "Owner Passwort: **`owner123`**"
@@ -842,7 +842,7 @@ elif st.session_state.tab == "game":
             let itemDrops = [];
             let lastDropTime = 0;
 
-            // Waffendefinitionen
+            // Waffendefinitionen (Geschosse wurden signifikant beschleunigt)
             class Weapon {
                 constructor(name, cooldownMs, bulletSpeed, bulletDamage, bulletSize, bulletColor) {
                     this.name = name; this.cooldownMs = cooldownMs; this.bulletSpeed = bulletSpeed;
@@ -862,14 +862,15 @@ elif st.session_state.tab == "game":
                 }
             }
 
+            // Geschwindigkeiten erhöht: Pistole 7.0 -> 14.0 | Minigun 9.0 -> 18.0 | Raketenwerfer 11.0 -> 22.0
             class Pistol extends Weapon {
-                constructor() { super("Pistole", 250, 7.0, 15, 6, '#ffdc5a'); }
+                constructor() { super("Pistole", 200, 14.0, 15, 6, '#ffdc5a'); }
             }
             class Minigun extends Weapon {
-                constructor() { super("Minigun", 60, 9.0, 7, 4, '#ffc864'); }
+                constructor() { super("Minigun", 50, 18.0, 7, 4, '#ffc864'); }
             }
             class RocketLauncher extends Weapon {
-                constructor() { super("Raketenwerfer", 1400, 11.0, 90, 10, '#ff3232'); }
+                constructor() { super("Raketenwerfer", 1200, 22.0, 90, 10, '#ff3232'); }
             }
 
             // Item Drops (Kisten) System
@@ -996,8 +997,9 @@ elif st.session_state.tab == "game":
                     if (this.health <= 0) {
                         this.health = 0;
                         this.alive = false;
-                        // Drop beim Sterben erzeugen
-                        spawnRandomDrop(this.x, this.y);
+                        // 2 Drops beim Sterben erzeugen (Erhöhte Droprate)
+                        spawnRandomDrop(this.x - 10, this.y);
+                        spawnRandomDrop(this.x + 10, this.y);
                     }
                 }
                 draw() {
@@ -1076,8 +1078,8 @@ elif st.session_state.tab == "game":
             function gameLoop(time) {
                 ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
-                // Automatischer Item-Drop alle 8 Sekunden
-                if (time - lastDropTime > 8000) {
+                // Automatischer Item-Drop alle 3 Sekunden (Erhöhte Droprate)
+                if (time - lastDropTime > 3000) {
                     spawnRandomDrop();
                     lastDropTime = time;
                 }
